@@ -1,4 +1,4 @@
-package main
+package tika_extractor
 
 import (
 	"fmt"
@@ -14,7 +14,7 @@ const (
 	batchSize     = 5
 )
 
-func main() {
+func tika_extractor() {
 	client := tika.NewClient(tikaServerURL)
 	processor := tika.NewProcessor(client)
 	batchProcessor := tika.NewBatchProcessor(processor, batchSize)

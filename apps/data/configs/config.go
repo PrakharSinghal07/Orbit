@@ -1,4 +1,4 @@
-package main
+package config
 
 import (
 	"fmt"
@@ -233,7 +233,7 @@ func getHostsInNetwork(ipNet *net.IPNet) []net.IP {
 	return ips
 }
 
-func main() {
+func config() {
 	outputDir := "./synthetic_configs"
 	
 	if err := os.MkdirAll(outputDir, os.ModePerm); err != nil {

@@ -1,4 +1,4 @@
-package main
+package logs
 
 import (
 	"fmt"
@@ -190,7 +190,7 @@ func generateAllLogs(outputDir string) error {
 	return nil
 }
 
-func main() {
+func logs() {
 	outputDir := "./synthetic_logs"
 	err := generateAllLogs(outputDir)
 	if err != nil {
