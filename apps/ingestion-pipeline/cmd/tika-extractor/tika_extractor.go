@@ -1,10 +1,12 @@
+// tika_extractor.go
 package tika_extractor
 
 import (
 	"fmt"
 	"log"
 
-	"github.com/NEMYSESx/orbit/internal/tika"
+	// Change import path to avoid circular dependency
+	"github.com/NEMYSESx/orbit/apps/ingestion-pipeline/pkg/tika"
 )
 
 const (
@@ -14,7 +16,8 @@ const (
 	batchSize     = 5
 )
 
-func tika_extractor() {
+// Capitalize function name to export it
+func TikaExtractor() {
 	client := tika.NewClient(tikaServerURL)
 	processor := tika.NewProcessor(client)
 	batchProcessor := tika.NewBatchProcessor(processor, batchSize)

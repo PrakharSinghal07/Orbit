@@ -1,6 +1,8 @@
+// batch_processor.go
 package tika
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -23,6 +25,10 @@ func (bp *BatchProcessor) ProcessDirectory(pdfDir string) ([]ExtractedData, erro
 	files, err := bp.getPDFFiles(pdfDir)
 	if err != nil {
 		return nil, err
+	}
+
+	if len(files) == 0 {
+		return nil, fmt.Errorf("no PDF files found in directory: %s", pdfDir)
 	}
 
 	return bp.processInBatch(files)
@@ -48,6 +54,7 @@ func (bp *BatchProcessor) processInBatch(files []string) ([]ExtractedData, error
 	var wg sync.WaitGroup
 	semaphore := make(chan struct{}, bp.BatchSize)
 	results := make(chan ExtractedData, len(files))
+	errorsChan := make(chan error, len(files))
 
 	for _, file := range files {
 		wg.Add(1)
@@ -59,7 +66,8 @@ func (bp *BatchProcessor) processInBatch(files []string) ([]ExtractedData, error
 			if err == nil {
 				results <- *data
 			} else {
-				log.Printf("Failed to process file: %s", pdfFile)
+				log.Printf("Failed to process file: %s - %v", pdfFile, err)
+				errorsChan <- fmt.Errorf("failed to process %s: %w", pdfFile, err)
 			}
 			<-semaphore
 		}(file)
@@ -68,11 +76,27 @@ func (bp *BatchProcessor) processInBatch(files []string) ([]ExtractedData, error
 	go func() {
 		wg.Wait()
 		close(results)
+		close(errorsChan)
 	}()
 
 	var extractedData []ExtractedData
 	for result := range results {
 		extractedData = append(extractedData, result)
+	}
+
+	// Check if any errors occurred
+	var errList []error
+	for err := range errorsChan {
+		errList = append(errList, err)
+	}
+	
+	// If we have some results and some errors, we'll log the errors but still return the successful results
+	if len(errList) > 0 && len(extractedData) > 0 {
+		log.Printf("Warning: %d files failed to process", len(errList))
+		return extractedData, nil
+	} else if len(errList) > 0 {
+		// If all files failed, return an error
+		return nil, fmt.Errorf("all files failed to process: %v", errList[0])
 	}
 
 	return extractedData, nil

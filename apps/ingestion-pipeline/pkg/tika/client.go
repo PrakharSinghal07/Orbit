@@ -1,9 +1,10 @@
+// client.go
 package tika
 
 import (
 	"bytes"
+	"fmt"
 	"io"
-	"log"
 	"net/http"
 )
 
@@ -32,8 +33,8 @@ func (c *Client) ExtractText(pdfData []byte) (string, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		log.Printf("Tika server returned status: %d", resp.StatusCode)
-		return "", err
+		// Create a new error instead of using the err variable which is nil here
+		return "", fmt.Errorf("tika server returned status: %d", resp.StatusCode)
 	}
 
 	text, err := io.ReadAll(resp.Body)
