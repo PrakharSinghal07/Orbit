@@ -5,7 +5,6 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 )
@@ -64,6 +63,34 @@ var (
 	currentRand = rand.New(rand.NewSource(time.Now().UnixNano()))
 )
 
+type LogConfig struct {
+	OutputDir          string
+	RotationInterval   time.Duration
+	LogsPerMinute      map[string]int
+	IncludeErrors      bool
+	RotateFilesBySize  bool
+	MaxFileSizeMB      int
+	RetentionPeriod    time.Duration
+}
+
+// Default configuration
+func DefaultLogConfig() LogConfig {
+	return LogConfig{
+		OutputDir:        "./synthetic_logs",
+		RotationInterval: 24 * time.Hour,
+		LogsPerMinute: map[string]int{
+			"system":  10,
+			"network": 5,
+			"cluster": 3,
+			"slurm":   8,
+		},
+		IncludeErrors:     true,
+		RotateFilesBySize: false,
+		MaxFileSizeMB:     100,
+		RetentionPeriod:   30 * 24 * time.Hour, // 30 days
+	}
+}
+
 func generateTimestamp(startDate, endDate time.Time) time.Time {
 	delta := endDate.Sub(startDate)
 	deltaNanoseconds := int64(delta)
@@ -83,118 +110,259 @@ func replacePlaceholders(template string, values map[string]string) string {
 	return result
 }
 
-func generateLogs(logType string, numEntries int, startDate, endDate time.Time, includeErrors bool) []string {
-	logs := make([]string, 0, numEntries)
+func generateLogEntry(logType string, timestamp time.Time, includeErrors bool) string {
+	levelIndex := 0
 	
-	errorCount := 0
-	warningCount := 0
+	// Determine log level based on probability
 	if includeErrors {
-		errorCount = int(float64(numEntries) * 0.15)
-		warningCount = int(float64(numEntries) * 0.25)
-	}
-	
-	timestamps := make([]time.Time, numEntries)
-	for i := 0; i < numEntries; i++ {
-		timestamps[i] = generateTimestamp(startDate, endDate)
-	}
-	sort.Slice(timestamps, func(i, j int) bool {
-		return timestamps[i].Before(timestamps[j])
-	})
-	
-	for i, timestamp := range timestamps {
-		levelIndex := 0
-		if i < errorCount {
-			levelIndex = 1 
-		} else if i < errorCount+warningCount {
-			levelIndex = 2 
+		roll := currentRand.Float64()
+		if roll < 0.15 {
+			levelIndex = 1 // Error
+		} else if roll < 0.40 {
+			levelIndex = 2 // Warning
 		} else {
+			// Other types
 			if len(LogTypes[logType]) > 4 {
 				levelIndex = []int{0, 3, 4}[currentRand.Intn(3)]
 			}
 		}
-		
-		template := LogTypes[logType][levelIndex%len(LogTypes[logType])]
-		
-		timestampStr := timestamp.Format("2006-01-02 15:04:05.000")
-		
-		values := map[string]string{
-			"timestamp":        timestampStr,
-			"service":          getRandomElement(Services),
-			"action":           getRandomElement(Actions),
-			"error_code":       getRandomElement(ErrorCodes),
-			"error_message":    getRandomElement(ErrorMessages),
-			"percentage":       fmt.Sprintf("%d", currentRand.Intn(20)+80),
-			"interface":        getRandomElement(Interfaces),
-			"status":           getRandomElement(Statuses),
-			"hostname":         getRandomElement(Hostnames),
-			"port":             fmt.Sprintf("%d", currentRand.Intn(64511)+1024),
-			"ntp_server":       getRandomElement(NtpServers),
-			"node":             getRandomElement(Nodes),
-			"node1":            getRandomElement(Nodes),
-			"node2":            getRandomElement(Nodes),
-			"resource":         getRandomElement(Resources),
-			"partition_details": fmt.Sprintf("nodes %s,%s isolated", getRandomElement(Nodes), getRandomElement(Nodes)),
-			"job_id":           fmt.Sprintf("%d", currentRand.Intn(9000)+1000),
-			"user":             getRandomElement(Users),
-			"reservation_id":   fmt.Sprintf("res_%d", currentRand.Intn(900)+100),
-			"time_period":      fmt.Sprintf("%d hours", currentRand.Intn(24)+1),
-		}
-		
-		logEntry := replacePlaceholders(template, values)
-		logs = append(logs, fmt.Sprintf("%s %s", timestampStr, logEntry))
 	}
 	
-	return logs
+	template := LogTypes[logType][levelIndex%len(LogTypes[logType])]
+	
+	timestampStr := timestamp.Format("2006-01-02 15:04:05.000")
+	
+	values := map[string]string{
+		"timestamp":        timestampStr,
+		"service":          getRandomElement(Services),
+		"action":           getRandomElement(Actions),
+		"error_code":       getRandomElement(ErrorCodes),
+		"error_message":    getRandomElement(ErrorMessages),
+		"percentage":       fmt.Sprintf("%d", currentRand.Intn(20)+80),
+		"interface":        getRandomElement(Interfaces),
+		"status":           getRandomElement(Statuses),
+		"hostname":         getRandomElement(Hostnames),
+		"port":             fmt.Sprintf("%d", currentRand.Intn(64511)+1024),
+		"ntp_server":       getRandomElement(NtpServers),
+		"node":             getRandomElement(Nodes),
+		"node1":            getRandomElement(Nodes),
+		"node2":            getRandomElement(Nodes),
+		"resource":         getRandomElement(Resources),
+		"partition_details": fmt.Sprintf("nodes %s,%s isolated", getRandomElement(Nodes), getRandomElement(Nodes)),
+		"job_id":           fmt.Sprintf("%d", currentRand.Intn(9000)+1000),
+		"user":             getRandomElement(Users),
+		"reservation_id":   fmt.Sprintf("res_%d", currentRand.Intn(900)+100),
+		"time_period":      fmt.Sprintf("%d hours", currentRand.Intn(24)+1),
+	}
+	
+	logEntry := replacePlaceholders(template, values)
+	return fmt.Sprintf("%s %s", timestampStr, logEntry)
 }
 
-func writeLogsToFile(logs []string, filename string) error {
-	file, err := os.Create(filename)
+func appendLogToFile(logEntry string, filename string) error {
+	// Check if file exists
+	_, err := os.Stat(filename)
+	if os.IsNotExist(err) {
+		// Create directory if it doesn't exist
+		dir := filepath.Dir(filename)
+		if err := os.MkdirAll(dir, os.ModePerm); err != nil {
+			return err
+		}
+		
+		// Create file if it doesn't exist
+		file, err := os.Create(filename)
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+	}
+	
+	// Append to file
+	file, err := os.OpenFile(filename, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
 	if err != nil {
 		return err
 	}
 	defer file.Close()
 	
-	for _, log := range logs {
-		_, err := file.WriteString(log + "\n")
-		if err != nil {
-			return err
-		}
-	}
-	
-	return nil
+	_, err = file.WriteString(logEntry + "\n")
+	return err
 }
 
-func generateAllLogs(outputDir string) error {
-	err := os.MkdirAll(outputDir, os.ModePerm)
-	if err != nil {
-		return err
+func rotateLogFile(logType string, config LogConfig) (string, error) {
+	// Create timestamp for new file
+	timestamp := time.Now().Format("20060102-150405")
+	baseDir := filepath.Join(config.OutputDir, logType)
+	
+	// Create directory if it doesn't exist
+	if err := os.MkdirAll(baseDir, os.ModePerm); err != nil {
+		return "", err
 	}
 	
-	endDate := time.Now()
-	startDate := endDate.AddDate(0, 0, -30)
+	newFilename := filepath.Join(baseDir, fmt.Sprintf("%s-%s.log", logType, timestamp))
+	return newFilename, nil
+}
+
+func cleanupOldLogs(config LogConfig) error {
+	cutoffTime := time.Now().Add(-config.RetentionPeriod)
 	
-	for logType := range LogTypes {
-		numEntries := 500
-		if logType == "system" {
-			numEntries = 1000
+	return filepath.Walk(config.OutputDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
 		}
 		
-		logs := generateLogs(logType, numEntries, startDate, endDate, true)
-		err := writeLogsToFile(logs, filepath.Join(outputDir, logType+".log"))
-		if err != nil {
-			return err
+		// Skip directories
+		if info.IsDir() {
+			return nil
 		}
-	}
-	
-	fmt.Printf("Generated logs in %s\n", outputDir)
-	return nil
+		
+		// Check if file matches our log pattern and is older than retention period
+		if strings.HasSuffix(info.Name(), ".log") && info.ModTime().Before(cutoffTime) {
+			return os.Remove(path)
+		}
+		
+		return nil
+	})
 }
 
-func logs() {
-	outputDir := "./synthetic_logs"
-	err := generateAllLogs(outputDir)
-	if err != nil {
-		fmt.Printf("Error generating logs: %v\n", err)
-		os.Exit(1)
+func StartContinuousLogging(config LogConfig) {
+	fmt.Printf("Starting continuous log generation in %s\n", config.OutputDir)
+	
+	// Create the output directory if it doesn't exist
+	if err := os.MkdirAll(config.OutputDir, os.ModePerm); err != nil {
+		fmt.Printf("Error creating output directory: %v\n", err)
+		return
 	}
+	
+	// Initialize current log files
+	currentLogFiles := make(map[string]string)
+	for logType := range config.LogsPerMinute {
+		newFile, err := rotateLogFile(logType, config)
+		if err != nil {
+			fmt.Printf("Error creating log file for %s: %v\n", logType, err)
+			return
+		}
+		currentLogFiles[logType] = newFile
+		fmt.Printf("Created initial log file for %s: %s\n", logType, newFile)
+	}
+	
+	// Set up rotation timer
+	rotationTicker := time.NewTicker(config.RotationInterval)
+	defer rotationTicker.Stop()
+	
+	// Set up cleanup timer (daily)
+	cleanupTicker := time.NewTicker(24 * time.Hour)
+	defer cleanupTicker.Stop()
+	
+	// Calculate intervals for each log type
+	logIntervals := make(map[string]time.Duration)
+	for logType, logsPerMinute := range config.LogsPerMinute {
+		if logsPerMinute <= 0 {
+			continue
+		}
+		interval := time.Minute / time.Duration(logsPerMinute)
+		logIntervals[logType] = interval
+	}
+	
+	// Create tickers for each log type
+	logTickers := make(map[string]*time.Ticker)
+	for logType, interval := range logIntervals {
+		logTickers[logType] = time.NewTicker(interval)
+	}
+	
+	// Defer stopping all tickers
+	defer func() {
+		for _, ticker := range logTickers {
+			ticker.Stop()
+		}
+	}()
+	
+	// File size tracking
+	fileSizes := make(map[string]int64)
+	
+	// Setup done channels
+	done := make(chan bool)
+	
+	// Log generation goroutines
+	for logType, ticker := range logTickers {
+		go func(lt string, tk *time.Ticker) {
+			for {
+				select {
+				case <-tk.C:
+					// Generate log entry
+					logEntry := generateLogEntry(lt, time.Now(), config.IncludeErrors)
+					
+					// Append to current log file
+					err := appendLogToFile(logEntry, currentLogFiles[lt])
+					if err != nil {
+						fmt.Printf("Error writing to log file for %s: %v\n", lt, err)
+						continue
+					}
+					
+					// Update file size
+					if config.RotateFilesBySize {
+						fileSizes[lt] += int64(len(logEntry) + 1) // +1 for newline
+						
+						// Check if we need to rotate due to size
+						if fileSizes[lt] > int64(config.MaxFileSizeMB)*1024*1024 {
+							newFile, err := rotateLogFile(lt, config)
+							if err != nil {
+								fmt.Printf("Error rotating log file for %s: %v\n", lt, err)
+								continue
+							}
+							
+							fmt.Printf("Rotated log file for %s due to size: %s\n", lt, newFile)
+							currentLogFiles[lt] = newFile
+							fileSizes[lt] = 0
+						}
+					}
+					
+				case <-done:
+					return
+				}
+			}
+		}(logType, ticker)
+	}
+	
+	// Main loop for handling rotation and cleanup
+	for {
+		select {
+		case <-rotationTicker.C:
+			// Rotate all log files
+			for logType := range config.LogsPerMinute {
+				newFile, err := rotateLogFile(logType, config)
+				if err != nil {
+					fmt.Printf("Error rotating log file for %s: %v\n", logType, err)
+					continue
+				}
+				
+				fmt.Printf("Rotated log file for %s at scheduled interval: %s\n", logType, newFile)
+				currentLogFiles[logType] = newFile
+				fileSizes[logType] = 0
+			}
+			
+		case <-cleanupTicker.C:
+			// Clean up old log files
+			if err := cleanupOldLogs(config); err != nil {
+				fmt.Printf("Error cleaning up old log files: %v\n", err)
+			} else {
+				fmt.Println("Cleaned up old log files")
+			}
+			
+		case <-done:
+			return
+		}
+	}
+}
+
+func Logs() {
+	// Use the default configuration
+	config := DefaultLogConfig()
+	
+	// Start continuous logging
+	StartContinuousLogging(config)
+}
+
+// Custom configuration
+func LogsWithConfig(config LogConfig) {
+	StartContinuousLogging(config)
 }

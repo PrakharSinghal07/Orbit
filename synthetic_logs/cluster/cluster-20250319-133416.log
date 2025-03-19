@@ -1,0 +1,4 @@
+2025-03-19 13:34:28.598 INFO: Node node002 joined cluster at 2025-03-19 13:34:28.598
+2025-03-19 13:34:40.599 NOTICE: Performing failover of virtual_ip from node002 to node002
+2025-03-19 13:34:52.599 INFO: Node node001 joined cluster at 2025-03-19 13:34:52.599
+2025-03-19 13:35:04.599 NOTICE: Performing failover of scheduler from node001 to node005

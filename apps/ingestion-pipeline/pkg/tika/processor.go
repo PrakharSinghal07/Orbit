@@ -48,3 +48,12 @@ func SaveToJSON(outputFile string, data []ExtractedData) error {
 	}
 	return os.WriteFile(outputFile, jsonData, 0644)
 }
+
+// SaveSingleToJSON writes a single ExtractedData entry to a JSON file.
+func SaveSingleToJSON(outputFile string, data ExtractedData) error {
+	jsonData, err := json.MarshalIndent(data, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(outputFile, jsonData, 0644)
+}

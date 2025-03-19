@@ -1,23 +1,27 @@
-// tika_extractor.go
 package tika_extractor
 
 import (
 	"fmt"
 	"log"
+	"os"
+	"path/filepath"
 
-	// Change import path to avoid circular dependency
 	"github.com/NEMYSESx/orbit/apps/ingestion-pipeline/pkg/tika"
 )
 
 const (
 	tikaServerURL = "http://localhost:9998"
-	pdfDir        = "./data/pdfs"
-	outputFile    = "extracted_texts.json"
+	pdfDir        = "./apps/data/docs/hpe_docs"
+	outputDir     = "./apps/data/output/json"  // Directory for individual JSON files
 	batchSize     = 5
 )
 
-// Capitalize function name to export it
 func TikaExtractor() {
+	// Create output directory if it doesn't exist
+	if err := os.MkdirAll(outputDir, 0755); err != nil {
+		log.Fatalf("Error creating output directory: %v", err)
+	}
+
 	client := tika.NewClient(tikaServerURL)
 	processor := tika.NewProcessor(client)
 	batchProcessor := tika.NewBatchProcessor(processor, batchSize)
@@ -30,10 +34,19 @@ func TikaExtractor() {
 		log.Fatalf("Error processing PDFs: %v", err)
 	}
 
-	// Save results to JSON for Airbyte ingestion
-	if err := tika.SaveToJSON(outputFile, extractedTexts); err != nil {
-		log.Fatalf("Error saving to JSON: %v", err)
+	// Save each document to its own JSON file
+	fmt.Printf("Saving %d documents as individual JSON files...\n", len(extractedTexts))
+	successCount := 0
+	
+	for _, data := range extractedTexts {
+		outputPath := filepath.Join(outputDir, filepath.Base(data.FileName)+".json")
+		if err := tika.SaveSingleToJSON(outputPath, data); err != nil {
+			log.Printf("Error saving %s: %v", data.FileName, err)
+		} else {
+			successCount++
+		}
 	}
 
-	fmt.Printf("✅ Extraction complete. Data saved to %s\n", outputFile)
+	fmt.Printf("✅ Extraction complete. %d/%d documents saved to %s\n", 
+		successCount, len(extractedTexts), outputDir)
 }

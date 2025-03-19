@@ -1,0 +1,9 @@
+2025-03-19 13:34:22.599 WARNING: High packet loss on ens256: 87%
+2025-03-19 13:34:28.598 INFO: Interface bond0 up at 2025-03-19 13:34:28.598
+2025-03-19 13:34:34.599 ERROR: Cannot establish connection to compute02:54943 - authentication failed
+2025-03-19 13:34:40.599 NOTICE: NTP synchronization reconfigured with server 1.pool.ntp.org
+2025-03-19 13:34:46.599 WARNING: High packet loss on eth1: 91%
+2025-03-19 13:34:52.599 INFO: Interface bond0 flapping at 2025-03-19 13:34:52.599
+2025-03-19 13:34:58.598 ERROR: Cannot establish connection to compute01:32741 - timeout exceeded
+2025-03-19 13:35:04.599 WARNING: High packet loss on eth1: 83%
+2025-03-19 13:35:10.598 ERROR: Cannot establish connection to compute01:45959 - authentication failed
