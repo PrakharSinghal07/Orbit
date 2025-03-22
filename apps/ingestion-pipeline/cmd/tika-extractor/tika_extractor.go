@@ -12,12 +12,11 @@ import (
 const (
 	tikaServerURL = "http://localhost:9998"
 	pdfDir        = "./apps/data/docs/hpe_docs"
-	outputDir     = "./apps/data/output/json"  // Directory for individual JSON files
+	outputDir     = "./apps/data/output/json"  
 	batchSize     = 5
 )
 
 func TikaExtractor() {
-	// Create output directory if it doesn't exist
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
 		log.Fatalf("Error creating output directory: %v", err)
 	}
@@ -28,13 +27,11 @@ func TikaExtractor() {
 
 	fmt.Println("🔄 Starting batch PDF extraction...")
 
-	// Process PDFs in batch
 	extractedTexts, err := batchProcessor.ProcessDirectory(pdfDir)
 	if err != nil {
 		log.Fatalf("Error processing PDFs: %v", err)
 	}
 
-	// Save each document to its own JSON file
 	fmt.Printf("Saving %d documents as individual JSON files...\n", len(extractedTexts))
 	successCount := 0
 	

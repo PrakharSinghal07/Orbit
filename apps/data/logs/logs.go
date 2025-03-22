@@ -73,7 +73,6 @@ type LogConfig struct {
 	RetentionPeriod    time.Duration
 }
 
-// Default configuration
 func DefaultLogConfig() LogConfig {
 	return LogConfig{
 		OutputDir:        "./synthetic_logs",
@@ -87,7 +86,7 @@ func DefaultLogConfig() LogConfig {
 		IncludeErrors:     true,
 		RotateFilesBySize: false,
 		MaxFileSizeMB:     100,
-		RetentionPeriod:   30 * 24 * time.Hour, // 30 days
+		RetentionPeriod:   30 * 24 * time.Hour, 
 	}
 }
 
@@ -113,15 +112,13 @@ func replacePlaceholders(template string, values map[string]string) string {
 func generateLogEntry(logType string, timestamp time.Time, includeErrors bool) string {
 	levelIndex := 0
 	
-	// Determine log level based on probability
 	if includeErrors {
 		roll := currentRand.Float64()
 		if roll < 0.15 {
-			levelIndex = 1 // Error
+			levelIndex = 1 
 		} else if roll < 0.40 {
-			levelIndex = 2 // Warning
+			levelIndex = 2 
 		} else {
-			// Other types
 			if len(LogTypes[logType]) > 4 {
 				levelIndex = []int{0, 3, 4}[currentRand.Intn(3)]
 			}
@@ -160,16 +157,13 @@ func generateLogEntry(logType string, timestamp time.Time, includeErrors bool) s
 }
 
 func appendLogToFile(logEntry string, filename string) error {
-	// Check if file exists
 	_, err := os.Stat(filename)
 	if os.IsNotExist(err) {
-		// Create directory if it doesn't exist
 		dir := filepath.Dir(filename)
 		if err := os.MkdirAll(dir, os.ModePerm); err != nil {
 			return err
 		}
 		
-		// Create file if it doesn't exist
 		file, err := os.Create(filename)
 		if err != nil {
 			return err
@@ -177,7 +171,6 @@ func appendLogToFile(logEntry string, filename string) error {
 		defer file.Close()
 	}
 	
-	// Append to file
 	file, err := os.OpenFile(filename, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
 	if err != nil {
 		return err
@@ -189,11 +182,9 @@ func appendLogToFile(logEntry string, filename string) error {
 }
 
 func rotateLogFile(logType string, config LogConfig) (string, error) {
-	// Create timestamp for new file
 	timestamp := time.Now().Format("20060102-150405")
 	baseDir := filepath.Join(config.OutputDir, logType)
 	
-	// Create directory if it doesn't exist
 	if err := os.MkdirAll(baseDir, os.ModePerm); err != nil {
 		return "", err
 	}
@@ -210,12 +201,10 @@ func cleanupOldLogs(config LogConfig) error {
 			return err
 		}
 		
-		// Skip directories
 		if info.IsDir() {
 			return nil
 		}
 		
-		// Check if file matches our log pattern and is older than retention period
 		if strings.HasSuffix(info.Name(), ".log") && info.ModTime().Before(cutoffTime) {
 			return os.Remove(path)
 		}
@@ -227,13 +216,11 @@ func cleanupOldLogs(config LogConfig) error {
 func StartContinuousLogging(config LogConfig) {
 	fmt.Printf("Starting continuous log generation in %s\n", config.OutputDir)
 	
-	// Create the output directory if it doesn't exist
 	if err := os.MkdirAll(config.OutputDir, os.ModePerm); err != nil {
 		fmt.Printf("Error creating output directory: %v\n", err)
 		return
 	}
 	
-	// Initialize current log files
 	currentLogFiles := make(map[string]string)
 	for logType := range config.LogsPerMinute {
 		newFile, err := rotateLogFile(logType, config)
@@ -245,15 +232,12 @@ func StartContinuousLogging(config LogConfig) {
 		fmt.Printf("Created initial log file for %s: %s\n", logType, newFile)
 	}
 	
-	// Set up rotation timer
 	rotationTicker := time.NewTicker(config.RotationInterval)
 	defer rotationTicker.Stop()
 	
-	// Set up cleanup timer (daily)
 	cleanupTicker := time.NewTicker(24 * time.Hour)
 	defer cleanupTicker.Stop()
 	
-	// Calculate intervals for each log type
 	logIntervals := make(map[string]time.Duration)
 	for logType, logsPerMinute := range config.LogsPerMinute {
 		if logsPerMinute <= 0 {
@@ -263,46 +247,39 @@ func StartContinuousLogging(config LogConfig) {
 		logIntervals[logType] = interval
 	}
 	
-	// Create tickers for each log type
 	logTickers := make(map[string]*time.Ticker)
 	for logType, interval := range logIntervals {
 		logTickers[logType] = time.NewTicker(interval)
 	}
 	
-	// Defer stopping all tickers
 	defer func() {
 		for _, ticker := range logTickers {
 			ticker.Stop()
 		}
 	}()
 	
-	// File size tracking
 	fileSizes := make(map[string]int64)
 	
-	// Setup done channels
+
 	done := make(chan bool)
 	
-	// Log generation goroutines
 	for logType, ticker := range logTickers {
 		go func(lt string, tk *time.Ticker) {
 			for {
 				select {
 				case <-tk.C:
-					// Generate log entry
 					logEntry := generateLogEntry(lt, time.Now(), config.IncludeErrors)
 					
-					// Append to current log file
+				
 					err := appendLogToFile(logEntry, currentLogFiles[lt])
 					if err != nil {
 						fmt.Printf("Error writing to log file for %s: %v\n", lt, err)
 						continue
 					}
 					
-					// Update file size
 					if config.RotateFilesBySize {
-						fileSizes[lt] += int64(len(logEntry) + 1) // +1 for newline
+						fileSizes[lt] += int64(len(logEntry) + 1) 
 						
-						// Check if we need to rotate due to size
 						if fileSizes[lt] > int64(config.MaxFileSizeMB)*1024*1024 {
 							newFile, err := rotateLogFile(lt, config)
 							if err != nil {
@@ -323,11 +300,9 @@ func StartContinuousLogging(config LogConfig) {
 		}(logType, ticker)
 	}
 	
-	// Main loop for handling rotation and cleanup
 	for {
 		select {
 		case <-rotationTicker.C:
-			// Rotate all log files
 			for logType := range config.LogsPerMinute {
 				newFile, err := rotateLogFile(logType, config)
 				if err != nil {
@@ -341,7 +316,6 @@ func StartContinuousLogging(config LogConfig) {
 			}
 			
 		case <-cleanupTicker.C:
-			// Clean up old log files
 			if err := cleanupOldLogs(config); err != nil {
 				fmt.Printf("Error cleaning up old log files: %v\n", err)
 			} else {
@@ -355,14 +329,12 @@ func StartContinuousLogging(config LogConfig) {
 }
 
 func Logs() {
-	// Use the default configuration
 	config := DefaultLogConfig()
 	
-	// Start continuous logging
+	
 	StartContinuousLogging(config)
 }
 
-// Custom configuration
 func LogsWithConfig(config LogConfig) {
 	StartContinuousLogging(config)
 }

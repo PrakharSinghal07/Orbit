@@ -1,4 +1,3 @@
-// batch_processor.go
 package tika
 
 import (
@@ -9,18 +8,15 @@ import (
 	"sync"
 )
 
-// BatchProcessor handles batch processing of PDFs.
 type BatchProcessor struct {
 	Processor *Processor
 	BatchSize int
 }
 
-// NewBatchProcessor initializes a BatchProcessor.
 func NewBatchProcessor(processor *Processor, batchSize int) *BatchProcessor {
 	return &BatchProcessor{Processor: processor, BatchSize: batchSize}
 }
 
-// ProcessDirectory scans a directory and processes PDFs in batches.
 func (bp *BatchProcessor) ProcessDirectory(pdfDir string) ([]ExtractedData, error) {
 	files, err := bp.getPDFFiles(pdfDir)
 	if err != nil {
@@ -34,7 +30,6 @@ func (bp *BatchProcessor) ProcessDirectory(pdfDir string) ([]ExtractedData, erro
 	return bp.processInBatch(files)
 }
 
-// getPDFFiles retrieves all PDF files in the directory.
 func (bp *BatchProcessor) getPDFFiles(dir string) ([]string, error) {
 	var pdfFiles []string
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
@@ -49,7 +44,6 @@ func (bp *BatchProcessor) getPDFFiles(dir string) ([]string, error) {
 	return pdfFiles, err
 }
 
-// processInBatch runs concurrent goroutines for processing PDFs.
 func (bp *BatchProcessor) processInBatch(files []string) ([]ExtractedData, error) {
 	var wg sync.WaitGroup
 	semaphore := make(chan struct{}, bp.BatchSize)
@@ -84,18 +78,15 @@ func (bp *BatchProcessor) processInBatch(files []string) ([]ExtractedData, error
 		extractedData = append(extractedData, result)
 	}
 
-	// Check if any errors occurred
 	var errList []error
 	for err := range errorsChan {
 		errList = append(errList, err)
 	}
 	
-	// If we have some results and some errors, we'll log the errors but still return the successful results
 	if len(errList) > 0 && len(extractedData) > 0 {
 		log.Printf("Warning: %d files failed to process", len(errList))
 		return extractedData, nil
 	} else if len(errList) > 0 {
-		// If all files failed, return an error
 		return nil, fmt.Errorf("all files failed to process: %v", errList[0])
 	}
 
