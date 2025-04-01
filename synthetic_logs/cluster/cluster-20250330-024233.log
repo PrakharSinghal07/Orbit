@@ -1,0 +1,4 @@
+2025-03-30 02:42:45.465 CRITICAL: Cluster partition detected - nodes node005,node001 isolated
+2025-03-30 02:42:57.466 WARNING: Possible split-brain detected between nodes node002 and node005
+2025-03-30 02:43:09.465 NOTICE: Performing failover of virtual_ip from node004 to node001
+2025-03-30 02:43:21.466 WARNING: Possible split-brain detected between nodes node003 and node004
