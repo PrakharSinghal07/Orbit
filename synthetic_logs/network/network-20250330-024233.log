@@ -1,9 +1,0 @@
-2025-03-30 02:42:39.466 ERROR: Cannot establish connection to login01:35673 - invalid configuration
-2025-03-30 02:42:45.465 NOTICE: NTP synchronization flapping with server ntp.hpe.com
-2025-03-30 02:42:51.466 INFO: Interface eth0 down at 2025-03-30 02:42:51.466
-2025-03-30 02:42:57.465 ERROR: DNS resolution failed for storage01 - E1005
-2025-03-30 02:43:03.466 INFO: Interface ens192 reconfigured at 2025-03-30 02:43:03.466
-2025-03-30 02:43:09.465 ERROR: DNS resolution failed for login01 - E1005
-2025-03-30 02:43:15.466 NOTICE: NTP synchronization degraded with server 1.pool.ntp.org
-2025-03-30 02:43:21.466 NOTICE: NTP synchronization flapping with server timeserver.local
-2025-03-30 02:43:27.466 INFO: Interface ens256 degraded at 2025-03-30 02:43:27.466

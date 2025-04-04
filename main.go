@@ -14,7 +14,7 @@ import (
 func main() {
 	// config := logs.DefaultLogConfig()
 	
-	// config.OutputDir = "./synthetic_logs"
+	// config.OutputDir = "./data/synthetic_logs"
 	// config.LogsPerMinute = map[string]int{
 	// 	"system":  20,  
 	// 	"network": 10,  
