@@ -1,11 +1,5 @@
 version: "3"
 services:
-  qdrant:
-    image: qdrant/qdrant
-    container_name: qdrant
-    ports:
-      - 6333:6333
-
   kafka:
     image: confluentinc/cp-kafka:latest
     container_name: kafka
@@ -20,7 +14,10 @@ services:
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT"
       KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
       CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
-
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
   kafka-connect:
     image: confluentinc/cp-kafka-connect:latest
     container_name: kafka-connect
@@ -37,9 +34,22 @@ services:
       CONNECT_STATUS_STORAGE_TOPIC: connect-status
       CONNECT_KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
       CONNECT_VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE: "false"
+      CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE: "false"
       CONNECT_REST_ADVERTISED_HOST_NAME: kafka-connect
       CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 1
       CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1
       CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_PLUGIN_PATH: "/usr/share/java,/usr/share/confluent-hub-components,/connectors"
     volumes:
       - C:\Users\SHAKIR\Desktop\hpe\orbit\apps\data\output\json:/data
+      - ./connectors:/connectors
+    command: >
+      bash -c '
+        echo "Installing connector plugins..."
+        confluent-hub install --no-prompt confluentinc/kafka-connect-file:latest
+        echo "Installing FilePulse connector..."
+        confluent-hub install --no-prompt streamthoughts/kafka-connect-file-pulse:latest
+        echo "Launching Kafka Connect worker"
+        /etc/confluent/docker/run
+      '
