@@ -2,25 +2,23 @@
   "name": "file-pulse-json-source",
   "config": {
     "connector.class": "io.streamthoughts.kafka.connect.filepulse.source.FilePulseSourceConnector",
-    "tasks.max": "1",
     "topic": "json-data",
+    "tasks.max": "1",
 
-    "fs.listing.class": "io.streamthoughts.kafka.connect.filepulse.scanner.local.LocalFSDirectoryListing",
-    "fs.listing.directory.path": "/data",
+    "fs.listing.class": "io.streamthoughts.kafka.connect.filepulse.fs.LocalFSDirectoryListing",
     "fs.listing.interval.ms": "10000",
-    "fs.listing.filter.class": "io.streamthoughts.kafka.connect.filepulse.scanner.local.filter.RegexFileListFilter",
-    "fs.listing.filter.pattern": ".*\\.json$",
+    "fs.listing.directory.path": "/data",
+    "fs.listing.recursive.enabled": "true",
 
-    "fs.cleanup.policy.class": "io.streamthoughts.kafka.connect.filepulse.clean.LogCleanupPolicy",
-    "fs.cleanup.policy.triggered.on": "COMMITTED",
+    "fs.cleanup.policy.class": "io.streamthoughts.kafka.connect.filepulse.fs.clean.LogCleanupPolicy",
 
-    "tasks.reader.class": "io.streamthoughts.kafka.connect.filepulse.fs.reader.JsonFileInputReader",
-    "offset.strategy": "name",
-
-    "tasks.file.status.storage.class": "io.streamthoughts.kafka.connect.filepulse.state.KafkaFileObjectStateBackingStore",
     "tasks.file.status.storage.bootstrap.servers": "kafka:29092",
     "tasks.file.status.storage.topic": "connect-file-pulse-status",
-    "tasks.file.status.storage.topic.partitions": "1",
-    "tasks.file.status.storage.topic.replication.factor": "1"
+
+    "offset.attributes.string": "name+hash",
+
+    "tasks.reader.class": "io.streamthoughts.kafka.connect.filepulse.fs.reader.LocalRowFileInputReader",
+
+    "fs.scanner.filter.regex.pattern": ".*\\.json$"
   }
 }

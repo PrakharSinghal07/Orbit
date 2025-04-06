@@ -44,12 +44,3 @@ services:
     volumes:
       - C:\Users\SHAKIR\Desktop\hpe\orbit\apps\data\output\json:/data
       - ./connectors:/connectors
-    command: >
-      bash -c '
-        echo "Installing connector plugins..."
-        confluent-hub install --no-prompt confluentinc/kafka-connect-file:latest
-        echo "Installing FilePulse connector..."
-        confluent-hub install --no-prompt streamthoughts/kafka-connect-file-pulse:latest
-        echo "Launching Kafka Connect worker"
-        /etc/confluent/docker/run
-      '
