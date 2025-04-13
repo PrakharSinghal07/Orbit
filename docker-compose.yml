@@ -1,7 +1,7 @@
 version: "3"
 services:
   kafka:
-    image: confluentinc/cp-kafka:latest
+    image: confluentinc/cp-kafka:7.9.0
     container_name: kafka
     ports:
       - 9092:9092
@@ -20,7 +20,7 @@ services:
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
 
   kafka-connect:
-    image: confluentinc/cp-kafka-connect:latest
+    image: confluentinc/cp-kafka-connect:7.9.0
     container_name: kafka-connect
     depends_on:
       - kafka
@@ -42,17 +42,6 @@ services:
       CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1
       CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1
       CONNECT_PLUGIN_PATH: "/usr/share/java,/usr/share/confluent-hub-components,/connectors"
-      # Add this to fix classloader isolation issues
-      CONNECT_PLUGIN_CLIENT_CONFIG_OVERRIDE_POLICY: "All"
     volumes:
-      - C:\Users\SHAKIR\Desktop\hpe\orbit\apps\data\output:/data
+      - C:/Users/SHAKIR/Desktop/hpe/orbit/apps/data/output:/data
       - ./connectors:/connectors
-    command:
-      - bash
-      - -c
-      - |
-        echo "Installing connector plugins"
-        # Install FilePulse version 2.8.0 (compatible with CP 7.3.0)
-        confluent-hub install --no-prompt streamthoughts/kafka-connect-file-pulse:2.8.0
-        # Start connect
-        /etc/confluent/docker/run
