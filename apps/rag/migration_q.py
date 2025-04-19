@@ -13,6 +13,7 @@ import textwrap
 from qdrant_client.http.exceptions import ResponseHandlingException, UnexpectedResponse
 import google.generativeai as genai
 from tqdm import tqdm
+from benchmarking import Benchmark, benchmark
 
 # Constants for chunking
 DEFAULT_CHUNK_SIZE = 500
@@ -249,6 +250,8 @@ class AgenticChunker:
         
         return chunks
 
+
+@benchmark(runs=3, warmup_runs=1, name="push_data")
 def push_data_to_qdrant(
     collection_name="my_collection_new",
     host="localhost",
@@ -579,16 +582,18 @@ def search_with_gemini(
         print(f"Search error: {str(e)}")
         return []
 
-def retrieve_and_answer(
+def retrieve_and_answer_expanded(
     client,
     collection_name,
     query_text,
     model_name='intfloat/multilingual-e5-large-instruct',
     gemini_api_key=None,
-    k=3
+    k=3,
+    expand_with_model_knowledge=True
 ):
     """
-    Perform retrieval-augmented generation using Qdrant and Gemini.
+    Perform retrieval-augmented generation using Qdrant and Gemini,
+    with option to expand answers using Gemini's knowledge.
     
     Args:
         client: QdrantClient instance
@@ -597,6 +602,7 @@ def retrieve_and_answer(
         model_name: Name of the embedding model
         gemini_api_key: API key for Gemini
         k: Number of documents to retrieve
+        expand_with_model_knowledge: Whether to allow Gemini to use its own knowledge
     """
     # Configure Gemini
     if gemini_api_key:
@@ -620,7 +626,14 @@ def retrieve_and_answer(
     )
     
     if not search_results:
-        return "I couldn't find any relevant information to answer your question."
+        if expand_with_model_knowledge:
+            # Fall back to Gemini's knowledge if no relevant documents found
+            model = genai.GenerativeModel('gemini-1.5-pro')
+            prompt = f"Please answer this question using your knowledge: {query_text}"
+            response = model.generate_content(prompt)
+            return response.text
+        else:
+            return "I couldn't find any relevant information to answer your question."
     
     # Construct context from search results
     context = "\n\n".join([
@@ -629,18 +642,33 @@ def retrieve_and_answer(
     ])
     
     # Generate answer with Gemini
-    model = genai.GenerativeModel('')
+    model = genai.GenerativeModel('gemini-1.5-pro')
     
-    prompt = f"""
-    Answer the following question based solely on the provided information. If the information to answer the question is not in the provided context, say "I don't have enough information to answer this question."
-    
-    Question: {query_text}
-    
-    Context:
-    {context}
-    
-    Answer:
-    """
+    if expand_with_model_knowledge:
+        prompt = f"""
+        Answer the following question using both the provided information AND your own knowledge. 
+        The provided context contains important information related to the question, but you should 
+        expand on it with additional relevant details, examples, or explanations from your knowledge.
+        
+        Question: {query_text}
+        
+        Context from database:
+        {context}
+        
+        Please provide a comprehensive answer that integrates the context information with your broader knowledge.
+        """
+    else:
+        # Original RAG approach - restrict to only provided information
+        prompt = f"""
+        Answer the following question based solely on the provided information. If the information to answer the question is not in the provided context, say "I don't have enough information to answer this question."
+        
+        Question: {query_text}
+        
+        Context:
+        {context}
+        
+        Answer:
+        """
     
     try:
         response = model.generate_content(prompt)
@@ -717,7 +745,7 @@ if __name__ == "__main__":
         # Example of retrieval-augmented generation
         print("\n=== RETRIEVAL-AUGMENTED GENERATION EXAMPLE ===")
         query = "What are neural networks?"
-        answer = retrieve_and_answer(
+        answer = retrieve_and_answer_expanded(
             client,
             collection_name,
             query,
