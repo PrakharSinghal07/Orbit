@@ -1,8 +1,12 @@
 from fastapi import APIRouter, Depends, Query, HTTPException, Body
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field
-from ...services.search_service import SearchService
-from ...config import settings
+import os
+import sys
+# Add base directory to path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+from services.search_service import SearchService
+from config import settings
 
 router = APIRouter(
     prefix="/search",

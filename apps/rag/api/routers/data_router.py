@@ -1,8 +1,15 @@
+import os
+import sys
+
+# Add the parent directory to the Python path
+parent_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, parent_dir)
+
 from fastapi import APIRouter, Depends, HTTPException, Body
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field
-from ...services.data_service import DataService
-from ...config import settings
+from services.data_service import DataService
+from config import settings
 
 router = APIRouter(
     prefix="/data",

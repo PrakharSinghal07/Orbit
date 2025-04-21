@@ -1,9 +1,16 @@
+import os
+import sys
+import uvicorn  # Add this import for uvicorn
+
+# Add the parent directory to the Python path for imports
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+sys.path.insert(0, parent_dir)
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from .routers import data_router, search_router, rag_router
-import os
-import uvicorn
-from ..config import settings
+from routers import data_router, search_router, rag_router
+from config import settings
 
 app = FastAPI(
     title="RAG API",
@@ -44,8 +51,12 @@ async def health_check():
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
-    uvicorn.run("rag_api.api.main:app", host="0.0.0.0", port=port, reload=True)
-
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=True)
+    
+    
+    
+    
+    
 import os
 import json
 import requests

@@ -1,10 +1,16 @@
 import os
+import sys
 import google.generativeai as genai
 from typing import Dict, Any, Optional
-from ..models.qdrant_client import QdrantClientWrapper
-from ..models.embeddings import EmbeddingModel
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+from models.qdrant_client import QdrantClientWrapper
+from models.embeddings import EmbeddingModel
 from .search_service import SearchService
-from ..config import settings
+
+parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, parent_dir)
+from config import settings
 
 class RAGService:
     """Service for Retrieval-Augmented Generation."""

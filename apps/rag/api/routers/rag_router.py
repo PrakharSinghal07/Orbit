@@ -1,8 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field
-from ...services.rag_service import RAGService
-from ...config import settings
+import sys
+import os
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+from services.rag_service import RAGService
+from config import settings
 
 router = APIRouter(
     prefix="/rag",

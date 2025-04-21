@@ -1,11 +1,19 @@
+import os
+import sys
 import time
 from typing import List, Dict, Any, Optional
 from tqdm import tqdm
-from ..models.chunker import AgenticChunker
-from ..models.embeddings import EmbeddingModel
-from ..models.qdrant_client import QdrantClientWrapper
+
+# Add the parent directory to the Python path
+parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, parent_dir)
+
+# Replace relative imports with absolute imports
+from models.chunker import AgenticChunker
+from models.embeddings import EmbeddingModel
+from models.qdrant_client import QdrantClientWrapper
 from qdrant_client.http import models
-from ..config import settings
+from config import settings
 
 class DataService:
     """Service for managing data in Qdrant."""
@@ -160,4 +168,3 @@ class DataService:
         
         print(f"Successfully uploaded {points_uploaded} points to '{collection_name}'")
         return {"status": "success", "points_uploaded": points_uploaded}
-

@@ -2,11 +2,17 @@ import re
 import json
 import textwrap
 import os
+import sys
 import google.generativeai as genai
 from typing import List, Dict, Any, Optional
-from ..models.embeddings import EmbeddingModel
-from ..models.qdrant_client import QdrantClientWrapper
-from ..config import settings
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+# Now import normally
+from models.embeddings import EmbeddingModel  
+from models.qdrant_client import QdrantClientWrapper
+
+parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, parent_dir)
+from config import settings
 
 class SearchService:
     """Service for searching data in Qdrant."""

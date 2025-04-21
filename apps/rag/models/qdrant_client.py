@@ -1,10 +1,16 @@
 import time
 import httpx
+import sys
+import os
 from typing import List, Dict, Any, Optional, Callable
 from qdrant_client import QdrantClient
 from qdrant_client.http import models
 from qdrant_client.http.exceptions import ResponseHandlingException, UnexpectedResponse
-from ..config import settings
+
+
+parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, parent_dir)
+from config import settings
 
 class QdrantClientWrapper:
     """Wrapper around the Qdrant client with improved error handling."""
