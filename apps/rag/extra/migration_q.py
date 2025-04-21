@@ -251,11 +251,11 @@ class AgenticChunker:
         return chunks
 
 
-@benchmark(runs=3, warmup_runs=1, name="push_data")
+# @benchmark(runs=3, warmup_runs=1, name="push_data")
 def push_data_to_qdrant(
     collection_name="my_collection_new",
-    host="localhost",
-    port=6333,
+    url="https://00819855-01e9-4396-a2b5-5a856fe32d73.eu-central-1-0.aws.cloud.qdrant.io:6333",
+    api_key="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIn0.I_YX0wNGh_QrZ9A8gjGs8tCgA1a-AKvQ1vyXVJ_QVrs",
     data=None,
     recreate_collection=False,
     model_name='intfloat/multilingual-e5-large-instruct',
@@ -282,19 +282,7 @@ def push_data_to_qdrant(
         gemini_api_key (str): API key for Google's Gemini model
         use_chunking (bool): Whether to use agentic chunking
     """
-    print(f"Checking connection to Qdrant server at {host}:{port}...")
-    
-    if not is_port_open(host, port):
-        print(f"ERROR: Cannot connect to Qdrant server at {host}:{port}")
-        print("Please ensure that:")
-        print("1. Qdrant server is running (e.g., via Docker)")
-        print("2. The host and port are correct")
-        print("3. There are no firewall issues blocking the connection")
-        print("\nTo start Qdrant with Docker, you can use:")
-        print(f"docker run -p {port}:{port} qdrant/qdrant")
-        return None
-    
-    print(f"Connection to {host}:{port} successful!")
+    print(f"Connecting to Qdrant cloud at {url}...")
     
     print(f"Loading SentenceTransformer model '{model_name}'...")
     model = SentenceTransformer(model_name)
@@ -303,7 +291,7 @@ def push_data_to_qdrant(
     vector_size = len(model.encode(sample_text))
     print(f"Using model '{model_name}' with vector size: {vector_size}")
     
-    client = QdrantClient(host=host, port=port, timeout=connection_timeout)
+    client = QdrantClient(url=url, api_key=api_key, timeout=connection_timeout)
     
     def with_retry(operation, *args, **kwargs):
         for attempt in range(retry_attempts):
@@ -441,7 +429,9 @@ def push_data_to_qdrant(
     except Exception as e:
         print(f"Error: {str(e)}")
         return None
-
+    
+    
+# @benchmark(runs=1, warmup_runs=0, name="searching_time")
 def search_with_gemini(
     client, 
     collection_name, 
@@ -709,8 +699,8 @@ if __name__ == "__main__":
         },
     ]
     
-    qdrant_host = "localhost"
-    qdrant_port = 6333
+    qdrant_url = "https://00819855-01e9-4396-a2b5-5a856fe32d73.eu-central-1-0.aws.cloud.qdrant.io:6333"
+    qdrant_api_key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIn0.I_YX0wNGh_QrZ9A8gjGs8tCgA1a-AKvQ1vyXVJ_QVrs"
     collection_name = "documents"
     
     # Set your Gemini API key here or as an environment variable
@@ -718,8 +708,8 @@ if __name__ == "__main__":
     
     result = push_data_to_qdrant(
         collection_name=collection_name,
-        host=qdrant_host,
-        port=qdrant_port,
+        url=qdrant_url,
+        api_key=qdrant_api_key,
         data=sample_data,
         recreate_collection=True,
         connection_timeout=15,
@@ -729,7 +719,7 @@ if __name__ == "__main__":
     )
     
     if result is not None:
-        client = QdrantClient(host=qdrant_host, port=qdrant_port, timeout=15)
+        client = QdrantClient(url=qdrant_url, api_key=qdrant_api_key, timeout=15)
         
         # Example of semantic search
         print("\n=== SEMANTIC SEARCH EXAMPLE ===")
