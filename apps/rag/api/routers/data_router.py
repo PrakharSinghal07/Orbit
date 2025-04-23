@@ -1,7 +1,6 @@
 import os
 import sys
 
-# Add the parent directory to the Python path
 parent_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, parent_dir)
 
@@ -42,7 +41,6 @@ async def push_data(
     """
     Push data to the vector database.
     """
-    # Convert documents to the expected format
     data = [
         {
             "id": item.id if item.id is not None else i,
@@ -52,7 +50,6 @@ async def push_data(
         for i, item in enumerate(request.data)
     ]
     
-    # Push data
     result = data_service.push_data(
         data=data,
         collection_name=request.collection_name,

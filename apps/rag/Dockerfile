@@ -2,23 +2,26 @@ FROM python:3.10-slim
 
 WORKDIR /app
 
-# Install system dependencies
+# Install build tools
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first for better layer caching
+# Install dependencies
 COPY requirements.txt .
-
-# Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the application
+# Preload the model using an alternative approach
+RUN python -c "from huggingface_hub import snapshot_download; snapshot_download('intfloat/multilingual-e5-large-instruct', local_dir='/app/model')"
+RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('/app/model')"
+
+# Copy your app
 COPY . .
 
-# Expose port
-EXPOSE 8000
+# Set environment variables
+ENV PYTHONPATH=/app
 
-# Command to run the application
-CMD ["uvicorn", "rag_api.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Expose and run
+EXPOSE 8000
+CMD ["python", "api/main.py"]

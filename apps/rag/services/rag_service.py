@@ -59,7 +59,6 @@ class RAGService:
         Returns:
             Dictionary with answer and context
         """
-        # Configure Gemini
         if gemini_api_key:
             genai.configure(api_key=gemini_api_key)
         else:
@@ -69,7 +68,6 @@ class RAGService:
             else:
                 raise ValueError("Gemini API key must be provided")
         
-        # Retrieve relevant documents
         search_results = self.search_service.search(
             query_text,
             collection_name=collection_name,
@@ -81,7 +79,6 @@ class RAGService:
         
         if not search_results:
             if expand_with_model_knowledge:
-                # Fall back to Gemini's knowledge if no relevant documents found
                 model = genai.GenerativeModel('gemini-1.5-pro')
                 prompt = f"Please answer this question using your knowledge: {query_text}"
                 response = model.generate_content(prompt)
@@ -99,14 +96,12 @@ class RAGService:
                     "used_model_knowledge": False
                 }
         
-        # Construct context from search results
         documents = []
         context = ""
         for i, result in enumerate(search_results):
             doc_text = result.payload.get('text', '')
             context += f"Document {i+1}:\n{doc_text}\n\n"
             
-            # Add document to return object
             documents.append({
                 "id": result.id,
                 "text": doc_text,
@@ -114,7 +109,6 @@ class RAGService:
                 "metadata": {k: v for k, v in result.payload.items() if k != 'text'}
             })
         
-        # Generate answer with Gemini
         model = genai.GenerativeModel('gemini-1.5-pro')
         
         if expand_with_model_knowledge:
@@ -131,7 +125,6 @@ class RAGService:
             Please provide a comprehensive answer that integrates the context information with your broader knowledge.
             """
         else:
-            # Original RAG approach - restrict to only provided information
             prompt = f"""
             Answer the following question based solely on the provided information. If the information 
             to answer the question is not in the provided context, say "I don't have enough information to answer this question."

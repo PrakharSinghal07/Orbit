@@ -3,7 +3,7 @@ from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field
 import os
 import sys
-# Add base directory to path
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 from services.search_service import SearchService
 from config import settings
@@ -50,7 +50,6 @@ async def search(
         filter_conditions=request.filter_conditions
     )
     
-    # Convert results to the expected format
     formatted_results = []
     for result in results:
         metadata = {k: v for k, v in result.payload.items() if k != 'text'}

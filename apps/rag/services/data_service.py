@@ -4,11 +4,9 @@ import time
 from typing import List, Dict, Any, Optional
 from tqdm import tqdm
 
-# Add the parent directory to the Python path
 parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, parent_dir)
 
-# Replace relative imports with absolute imports
 from models.chunker import AgenticChunker
 from models.embeddings import EmbeddingModel
 from models.qdrant_client import QdrantClientWrapper
@@ -71,14 +69,12 @@ class DataService:
         Returns:
             Dictionary with push results
         """
-        # Initialize chunker if chunking is enabled
         if use_chunking:
             self.initialize_chunker(gemini_api_key)
         
         vector_size = self.embedding_model.get_vector_size()
         print(f"Using model '{self.embedding_model.model_name}' with vector size: {vector_size}")
         
-        # Check if collection exists and handle recreation if needed
         if self.qdrant_client.collection_exists(collection_name):
             if recreate_collection:
                 print(f"Deleting existing collection '{collection_name}'...")
@@ -100,12 +96,10 @@ class DataService:
         for item_idx, item in enumerate(tqdm(data)):
             text = item.get("text", "")
             
-            # Skip empty texts
             if not text.strip():
                 print(f"Skipping item {item_idx} - empty text")
                 continue
             
-            # Apply chunking if enabled and text is long enough
             processed_items = []
             if use_chunking and self.chunker and len(text) > settings.DEFAULT_CHUNK_SIZE:
                 chunks = self.chunker.chunk_text(text, item.get("metadata", {}))
@@ -114,11 +108,8 @@ class DataService:
                     if isinstance(original_id, str) and original_id.isdigit():
                         original_id = int(original_id)
         
-                    # Generate a unique integer ID for the chunk
-                    # e.g. if original_id=1, chunk_ids will be 1000, 1001, 1002...
                     chunk_id = int(f"{original_id}{i:03d}")
         
-                    # Create a new item for each chunk
                     chunk_item = {
                         "id": chunk_id,
                         "text": chunk["text"],
@@ -131,10 +122,9 @@ class DataService:
                     }
                     processed_items.append(chunk_item)
             else:
-                # If chunking is disabled or text is short enough, use the original item
                 item_id = item.get("id", item_idx)
                 if isinstance(item_id, str) and item_id.isdigit():
-                    item_id = int(item_id)  # Convert string digits to int
+                    item_id = int(item_id)  
     
                 processed_items.append({
                     "id": item_id,
@@ -142,12 +132,10 @@ class DataService:
                     "metadata": item.get("metadata", {})
                 })
             
-            # Embed and create points for each processed item
             for proc_item in processed_items:
                 item_text = proc_item["text"]
                 embedding = self.embedding_model.encode(item_text)
                 
-                # Create the point with proper ID handling
                 point_id = proc_item["id"]
                 if isinstance(point_id, str) and point_id.isdigit():
                     point_id = int(point_id)

@@ -6,7 +6,6 @@ import sys
 import google.generativeai as genai
 from typing import List, Dict, Any, Optional
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
-# Now import normally
 from models.embeddings import EmbeddingModel  
 from models.qdrant_client import QdrantClientWrapper
 
@@ -58,13 +57,10 @@ class SearchService:
         try:
             print(f"\nPerforming search in '{collection_name}' for: '{query_text}'")
             
-            # Encode query text to vector
             query_vector = self.embedding_model.encode(query_text).tolist()
             
-            # Retrieve more results than requested if reranking
             search_limit = limit * 3 if rerank else limit
             
-            # Search in Qdrant
             search_results = self.qdrant_client.search(
                 collection_name,
                 query_vector,
@@ -76,7 +72,6 @@ class SearchService:
                 print("No results found.")
                 return []
             
-            # Rerank results with Gemini if requested
             if rerank:
                 search_results = self._rerank_with_gemini(
                     search_results,
@@ -85,10 +80,8 @@ class SearchService:
                     gemini_api_key
                 )
             else:
-                # Use original top results
                 search_results = search_results[:limit]
                 
-            # Print the results
             print(f"Search results:")
             for idx, result in enumerate(search_results[:limit]):
                 print(f"Result #{idx+1}")
@@ -124,7 +117,6 @@ class SearchService:
         Returns:
             Reranked search results
         """
-        # Set up Gemini for reranking
         if gemini_api_key:
             genai.configure(api_key=gemini_api_key)
         else:
@@ -137,7 +129,6 @@ class SearchService:
         
         model = genai.GenerativeModel('gemini-1.5-pro')
         
-        # Prepare context for reranking
         context_list = []
         for idx, result in enumerate(search_results):
             text = result.payload.get('text', '')
@@ -149,7 +140,6 @@ class SearchService:
                 "original_rank": idx
             })
         
-        # Request reranking from Gemini
         rerank_prompt = f"""
         I need help reranking search results for the query: "{query_text}"
         
@@ -174,7 +164,6 @@ class SearchService:
             if id_match:
                 reranked_ids = json.loads(id_match.group(1))
                 
-                # Map back to the original results and get top results
                 id_to_result = {str(result.id): result for result in search_results}
                 reranked_results = []
                 
@@ -185,14 +174,11 @@ class SearchService:
                         if len(reranked_results) >= limit:
                             break
                 
-                # Fall back to original if reranking returned too few results
                 if reranked_results and len(reranked_results) >= limit / 2:
                     print("Results reranked by Gemini LLM")
                     return reranked_results
             
-            # Just use the top from the original results
             return search_results[:limit]
         except Exception as e:
             print(f"Error during reranking: {e}")
-            # Fall back to original top results
             return search_results[:limit]

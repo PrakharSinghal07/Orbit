@@ -13,7 +13,7 @@ import textwrap
 from qdrant_client.http.exceptions import ResponseHandlingException, UnexpectedResponse
 import google.generativeai as genai
 from tqdm import tqdm
-from benchmarking import Benchmark, benchmark
+from apps.rag.test.benchmarking import Benchmark, benchmark
 
 # Constants for chunking
 DEFAULT_CHUNK_SIZE = 500
@@ -477,7 +477,6 @@ def search_with_gemini(
             print("No results found.")
             return []
         
-        # Set up Gemini for reranking and enhancement
         if gemini_api_key:
             genai.configure(api_key=gemini_api_key)
         else:
@@ -490,8 +489,6 @@ def search_with_gemini(
         
         if rerank:
             model = genai.GenerativeModel('gemini-1.5-pro')
-            
-            # Prepare context for reranking
             context_list = []
             for idx, result in enumerate(search_results):
                 text = result.payload.get('text', '')
@@ -503,7 +500,6 @@ def search_with_gemini(
                     "original_rank": idx
                 })
             
-            # Request reranking from Gemini
             rerank_prompt = f"""
             I need help reranking search results for the query: "{query_text}"
             
@@ -545,17 +541,12 @@ def search_with_gemini(
                     
                     print("Results reranked by Gemini LLM")
                 else:
-                    # Just use the top from the original results
                     search_results = search_results[:limit]
             except Exception as e:
                 print(f"Error during reranking: {e}")
-                # Fall back to original top results
                 search_results = search_results[:limit]
         else:
-            # Use original top results
             search_results = search_results[:limit]
-            
-        # Print the results
         print(f"Search results:")
         for idx, result in enumerate(search_results[:limit]):
             print(f"Result #{idx+1}")
@@ -594,7 +585,6 @@ def retrieve_and_answer_expanded(
         k: Number of documents to retrieve
         expand_with_model_knowledge: Whether to allow Gemini to use its own knowledge
     """
-    # Configure Gemini
     if gemini_api_key:
         genai.configure(api_key=gemini_api_key)
     else:
@@ -604,7 +594,6 @@ def retrieve_and_answer_expanded(
         else:
             raise ValueError("Gemini API key must be provided")
     
-    # Retrieve relevant documents
     search_results = search_with_gemini(
         client,
         collection_name,
@@ -617,7 +606,6 @@ def retrieve_and_answer_expanded(
     
     if not search_results:
         if expand_with_model_knowledge:
-            # Fall back to Gemini's knowledge if no relevant documents found
             model = genai.GenerativeModel('gemini-1.5-pro')
             prompt = f"Please answer this question using your knowledge: {query_text}"
             response = model.generate_content(prompt)
@@ -625,13 +613,11 @@ def retrieve_and_answer_expanded(
         else:
             return "I couldn't find any relevant information to answer your question."
     
-    # Construct context from search results
     context = "\n\n".join([
         f"Document {i+1}:\n{result.payload.get('text', '')}"
         for i, result in enumerate(search_results)
     ])
     
-    # Generate answer with Gemini
     model = genai.GenerativeModel('gemini-1.5-pro')
     
     if expand_with_model_knowledge:
@@ -648,7 +634,6 @@ def retrieve_and_answer_expanded(
         Please provide a comprehensive answer that integrates the context information with your broader knowledge.
         """
     else:
-        # Original RAG approach - restrict to only provided information
         prompt = f"""
         Answer the following question based solely on the provided information. If the information to answer the question is not in the provided context, say "I don't have enough information to answer this question."
         
@@ -668,8 +653,6 @@ def retrieve_and_answer_expanded(
         return f"Error generating answer: {str(e)}"
 
 if __name__ == "__main__":
-    # You would need to set this environment variable or pass it as a parameter
-    # os.environ["GEMINI_API_KEY"] = "your-gemini-api-key-here"
     
     sample_data = [
         {
@@ -703,7 +686,6 @@ if __name__ == "__main__":
     qdrant_api_key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIn0.I_YX0wNGh_QrZ9A8gjGs8tCgA1a-AKvQ1vyXVJ_QVrs"
     collection_name = "documents"
     
-    # Set your Gemini API key here or as an environment variable
     gemini_api_key = os.environ.get("GEMINI_API_KEY")
     
     result = push_data_to_qdrant(
@@ -721,7 +703,6 @@ if __name__ == "__main__":
     if result is not None:
         client = QdrantClient(url=qdrant_url, api_key=qdrant_api_key, timeout=15)
         
-        # Example of semantic search
         print("\n=== SEMANTIC SEARCH EXAMPLE ===")
         search_with_gemini(
             client, 
@@ -732,7 +713,6 @@ if __name__ == "__main__":
             rerank=True
         )
         
-        # Example of retrieval-augmented generation
         print("\n=== RETRIEVAL-AUGMENTED GENERATION EXAMPLE ===")
         query = "What are neural networks?"
         answer = retrieve_and_answer_expanded(

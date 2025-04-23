@@ -53,7 +53,6 @@ async def retrieve_and_answer(
             filter_conditions=request.filter_conditions
         )
         
-        # Convert retrieved documents to the expected format
         documents = [
             Document(
                 id=doc["id"],

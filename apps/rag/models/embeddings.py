@@ -42,14 +42,12 @@ class EmbeddingModel:
             numpy.ndarray: Vector representation(s) of the text(s)
         """
         if isinstance(text, str):
-            # Create instruction-following version of text for E5 models
             if "e5" in self.model_name.lower():
                 instruction_text = f"query: {text}"
             else:
                 instruction_text = text
             return self.model.encode(instruction_text)
         elif isinstance(text, list):
-            # Create instruction-following version for each text in the list
             if "e5" in self.model_name.lower():
                 instruction_texts = [f"query: {t}" for t in text]
             else:

@@ -135,7 +135,6 @@ class QdrantClientWrapper:
         Returns:
             Number of points inserted or updated
         """
-        # Upload in batches to avoid payload size limitations
         for i in range(0, len(points), batch_size):
             batch = points[i:i + batch_size]
             self.with_retry(
@@ -146,31 +145,32 @@ class QdrantClientWrapper:
         return len(points)
     
     def search(
-        self, 
-        collection_name: str, 
-        query_vector: List[float], 
-        limit: int = 10, 
-        filter_conditions: Optional[Dict[str, Any]] = None
+    self, 
+    collection_name: str, 
+    query_vector: List[float], 
+    limit: int = 10, 
+    filter_conditions: Optional[Dict[str, Any]] = None
     ) -> List[Any]:
         """
         Search for points in a collection.
-        
+    
         Args:
-            collection_name: Name of the collection
-            query_vector: Query vector
-            limit: Maximum number of results to return
-            filter_conditions: Optional filter conditions for search
-            
+        collection_name: Name of the collection
+        query_vector: Query vector
+        limit: Maximum number of results to return
+        filter_conditions: Optional filter conditions for search
+        
         Returns:
-            List of search results
+        List of search results
         """
         search_params = {
             "collection_name": collection_name,
-            "query": query_vector,
+            "query_vector": query_vector,
             "limit": limit,
-            "timeout": self.timeout
+            "with_payload": True,
+            "with_vectors": False
         }
-        
+    
         if filter_conditions:
             search_params["query_filter"] = models.Filter(
                 must=[
@@ -181,5 +181,5 @@ class QdrantClientWrapper:
                     for key, value in filter_conditions.items()
                 ]
             )
-        
-        return self.with_retry(self.client.query_points, **search_params).points
+    
+        return self.with_retry(self.client.search, **search_params)

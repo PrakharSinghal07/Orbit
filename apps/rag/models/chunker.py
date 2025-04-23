@@ -48,7 +48,6 @@ class AgenticChunker:
         Returns:
             Dict with chunking recommendations
         """
-        # Take a sample of the document if it's very long
         sample = text[:10000] if len(text) > 10000 else text
         
         prompt = f"""
@@ -75,15 +74,12 @@ class AgenticChunker:
         response = self.model.generate_content(prompt)
         response_text = response.text
         
-        # Extract JSON from response
         try:
-            # Find JSON content (between { and })
             json_match = re.search(r'(\{.*\})', response_text.replace('\n', ' '), re.DOTALL)
             if json_match:
                 json_str = json_match.group(1)
                 recommendations = json.loads(json_str)
             else:
-                # Fallback to default values
                 recommendations = {
                     "chunk_size": settings.DEFAULT_CHUNK_SIZE,
                     "chunk_overlap": settings.DEFAULT_CHUNK_OVERLAP,
@@ -126,7 +122,6 @@ class AgenticChunker:
         
         chunks = []
         
-        # Simple chunking by paragraphs first, then by size
         if "paragraph" in respect_boundaries:
             paragraphs = re.split(r'\n\s*\n', text)
             
@@ -140,10 +135,8 @@ class AgenticChunker:
                     
                 para_length = len(para)
                 
-                # If paragraph alone exceeds max chunk size, split it further
                 if para_length > chunk_size:
                     if current_chunk:
-                        # Add current accumulated chunk
                         chunks.append({
                             "text": current_chunk,
                             "metadata": {
@@ -155,7 +148,6 @@ class AgenticChunker:
                         current_chunk = ""
                         current_length = 0
                     
-                    # Split long paragraph into smaller chunks
                     words = para.split()
                     sub_chunk = ""
                     for word in words:
@@ -176,7 +168,6 @@ class AgenticChunker:
                         current_chunk = sub_chunk
                         current_length = len(sub_chunk)
                 else:
-                    # If adding this paragraph exceeds chunk size, start new chunk
                     if current_length + para_length + 1 > chunk_size:
                         chunks.append({
                             "text": current_chunk,
@@ -189,11 +180,9 @@ class AgenticChunker:
                         current_chunk = para
                         current_length = para_length
                     else:
-                        # Add to current chunk
                         current_chunk += "\n\n" + para if current_chunk else para
                         current_length += para_length + 2
             
-            # Add final chunk
             if current_chunk:
                 chunks.append({
                     "text": current_chunk,
@@ -204,10 +193,9 @@ class AgenticChunker:
                     }
                 })
         else:
-            # Fallback to simple overlapping chunks
             for i in range(0, len(text), chunk_size - chunk_overlap):
                 chunk_text = text[i:i + chunk_size]
-                if len(chunk_text) < 50:  # Skip very small chunks at the end
+                if len(chunk_text) < 50:  
                     continue
                 chunks.append({
                     "text": chunk_text,
@@ -219,7 +207,6 @@ class AgenticChunker:
                     }
                 })
                 
-        # Use Gemini to generate summaries for hierarchical chunks
         if recommendations.get("hierarchical", False):
             print("Generating summaries for hierarchical representation...")
             for i, chunk in enumerate(chunks):
