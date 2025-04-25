@@ -14,7 +14,6 @@ from qdrant_client.http.exceptions import ResponseHandlingException, UnexpectedR
 import google.generativeai as genai
 from tqdm import tqdm
 
-# Constants for chunking
 DEFAULT_CHUNK_SIZE = 500
 DEFAULT_CHUNK_OVERLAP = 50
 MAX_CHUNK_SIZE = 2000
@@ -62,7 +61,6 @@ class AgenticChunker:
         Returns:
             Dict with chunking recommendations
         """
-        # Take a sample of the document if it's very long
         sample = text[:10000] if len(text) > 10000 else text
         
         prompt = f"""
@@ -89,17 +87,13 @@ class AgenticChunker:
         response = self.model.generate_content(prompt)
         response_text = response.text
         
-        # Extract JSON from response
         try:
-            # This is a simple approach - in a robust implementation, you'd want better JSON extraction
             import json
-            # Find JSON content (between { and })
             json_match = re.search(r'(\{.*\})', response_text.replace('\n', ' '), re.DOTALL)
             if json_match:
                 json_str = json_match.group(1)
                 recommendations = json.loads(json_str)
             else:
-                # Fallback to default values
                 recommendations = {
                     "chunk_size": DEFAULT_CHUNK_SIZE,
                     "chunk_overlap": DEFAULT_CHUNK_OVERLAP,
@@ -142,7 +136,6 @@ class AgenticChunker:
         
         chunks = []
         
-        # Simple chunking by paragraphs first, then by size
         if "paragraph" in respect_boundaries:
             paragraphs = re.split(r'\n\s*\n', text)
             
@@ -156,10 +149,8 @@ class AgenticChunker:
                     
                 para_length = len(para)
                 
-                # If paragraph alone exceeds max chunk size, split it further
                 if para_length > chunk_size:
                     if current_chunk:
-                        # Add current accumulated chunk
                         chunks.append({
                             "text": current_chunk,
                             "metadata": {
@@ -171,7 +162,6 @@ class AgenticChunker:
                         current_chunk = ""
                         current_length = 0
                     
-                    # Split long paragraph into smaller chunks
                     words = para.split()
                     sub_chunk = ""
                     for word in words:
@@ -192,7 +182,6 @@ class AgenticChunker:
                         current_chunk = sub_chunk
                         current_length = len(sub_chunk)
                 else:
-                    # If adding this paragraph exceeds chunk size, start new chunk
                     if current_length + para_length + 1 > chunk_size:
                         chunks.append({
                             "text": current_chunk,
@@ -205,11 +194,9 @@ class AgenticChunker:
                         current_chunk = para
                         current_length = para_length
                     else:
-                        # Add to current chunk
                         current_chunk += "\n\n" + para if current_chunk else para
                         current_length += para_length + 2
             
-            # Add final chunk
             if current_chunk:
                 chunks.append({
                     "text": current_chunk,
@@ -220,10 +207,9 @@ class AgenticChunker:
                     }
                 })
         else:
-            # Fallback to simple overlapping chunks
             for i in range(0, len(text), chunk_size - chunk_overlap):
                 chunk_text = text[i:i + chunk_size]
-                if len(chunk_text) < 50:  # Skip very small chunks at the end
+                if len(chunk_text) < 50: 
                     continue
                 chunks.append({
                     "text": chunk_text,
@@ -235,7 +221,6 @@ class AgenticChunker:
                     }
                 })
                 
-        # Use Gemini to generate summaries for larger chunks
         if recommendations.get("hierarchical", False):
             print("Generating summaries for hierarchical representation...")
             for i, chunk in enumerate(chunks):
@@ -276,7 +261,6 @@ class QdrantRAGManager:
             gemini_model_name: Gemini model name
             connection_timeout: Connection timeout in seconds
         """
-        # Check connection to Qdrant
         if not is_port_open(host, port):
             raise ConnectionError(f"Cannot connect to Qdrant server at {host}:{port}")
             
@@ -286,19 +270,15 @@ class QdrantRAGManager:
         self.embedding_model_name = embedding_model_name
         self.connection_timeout = connection_timeout
         
-        # Initialize embedding model
         print(f"Loading SentenceTransformer model '{embedding_model_name}'...")
         self.embedding_model = SentenceTransformer(embedding_model_name)
         
-        # Set up vector dimensions
         sample_text = "Sample text for determining vector dimension"
         self.vector_size = len(self.embedding_model.encode(sample_text))
         print(f"Using model '{embedding_model_name}' with vector size: {self.vector_size}")
         
-        # Initialize Qdrant client
         self.client = QdrantClient(host=host, port=port, timeout=connection_timeout)
         
-        # Set up Gemini
         self.gemini_model_name = gemini_model_name
         if gemini_api_key:
             genai.configure(api_key=gemini_api_key)
@@ -312,7 +292,6 @@ class QdrantRAGManager:
                 self.gemini_api_key = None
                 print("Warning: Gemini API key not provided. RAG features will be limited.")
         
-        # Initialize chunker
         if self.gemini_api_key:
             self.chunker = AgenticChunker(gemini_api_key=self.gemini_api_key, model_name=gemini_model_name)
         else:
@@ -382,7 +361,6 @@ class QdrantRAGManager:
         if collection_name is None:
             collection_name = self.collection_name
             
-        # Setup or verify collection
         self.setup_collection(collection_name, recreate=recreate_collection)
         
         if data is None or len(data) == 0:
@@ -395,12 +373,10 @@ class QdrantRAGManager:
         for item_idx, item in enumerate(tqdm(data)):
             text = item.get("text", "")
             
-            # Skip empty texts
             if not text.strip():
                 print(f"Skipping item {item_idx} - empty text")
                 continue
             
-            # Apply chunking if enabled and text is long enough
             processed_items = []
             if use_chunking and self.chunker and len(text) > DEFAULT_CHUNK_SIZE:
                 chunks = self.chunker.chunk_text(text, item.get("metadata", {}))
@@ -409,10 +385,8 @@ class QdrantRAGManager:
                     if isinstance(original_id, str) and original_id.isdigit():
                         original_id = int(original_id)
         
-                    # Generate a unique integer ID for the chunk
-                    chunk_id = int(f"{original_id}{i:03d}")  # e.g. if original_id=1, chunk_ids will be 1000, 1001, 1002...
+                    chunk_id = int(f"{original_id}{i:03d}")  
         
-                    # Create a new item for each chunk
                     chunk_item = {
                         "id": chunk_id,
                         "text": chunk["text"],
@@ -425,10 +399,9 @@ class QdrantRAGManager:
                     }
                     processed_items.append(chunk_item)
             else:
-                # If chunking is disabled or text is short enough, use the original item
                 item_id = item.get("id", item_idx)
                 if isinstance(item_id, str) and item_id.isdigit():
-                    item_id = int(item_id)  # Convert string digits to int
+                    item_id = int(item_id)  
     
                 processed_items.append({
                     "id": item_id,
@@ -436,15 +409,12 @@ class QdrantRAGManager:
                     "metadata": item.get("metadata", {})
                 })
             
-            # Embed and create points for each processed item
             for proc_item in processed_items:
                 item_text = proc_item["text"]
                 
-                # Create instruction-following version of text for the E5 model
                 instruction_text = f"query: {item_text}"
                 embedding = self.embedding_model.encode(instruction_text)
                 
-                # Create the point with proper ID handling
                 point_id = proc_item["id"]
                 if isinstance(point_id, str) and point_id.isdigit():
                     point_id = int(point_id)
@@ -460,7 +430,6 @@ class QdrantRAGManager:
                 points.append(point)
         
         print(f"Uploading {len(points)} points to collection '{collection_name}'...")
-        # Upload in batches to avoid payload size limitations
         batch_size = 100
         for i in range(0, len(points), batch_size):
             batch = points[i:i + batch_size]
@@ -492,11 +461,9 @@ class QdrantRAGManager:
             
         print(f"\nPerforming search in '{collection_name}' for: '{query_text}'")
         
-        # Create instruction-following version of query for the E5 model
         instruction_query = f"query: {query_text}"
         query_vector = self.embedding_model.encode(instruction_query).tolist()
         
-        # Retrieve more results than requested if reranking
         search_limit = limit * 3 if rerank else limit
         
         search_results = self._with_retry(
@@ -513,12 +480,10 @@ class QdrantRAGManager:
                 return "I couldn't find any relevant information to answer your query."
             return []
         
-        # Perform reranking if requested and Gemini is available
         if rerank and self.gemini_api_key:
             try:
                 model = genai.GenerativeModel(self.gemini_model_name)
                 
-                # Prepare context for reranking
                 context_list = []
                 for idx, result in enumerate(search_results):
                     text = result.payload.get('text', '')
@@ -530,7 +495,6 @@ class QdrantRAGManager:
                         "original_rank": idx
                     })
                 
-                # Request reranking from Gemini
                 rerank_prompt = f"""
                 I need help reranking search results for the query: "{query_text}"
                 
@@ -554,7 +518,6 @@ class QdrantRAGManager:
                 if id_match:
                     reranked_ids = json.loads(id_match.group(1))
                     
-                    # Map back to the original results and get top results
                     id_to_result = {str(result.id): result for result in search_results}
                     reranked_results = []
                     
@@ -565,26 +528,20 @@ class QdrantRAGManager:
                             if len(reranked_results) >= limit:
                                 break
                     
-                    # Fall back to original if reranking returned too few results
                     if reranked_results and len(reranked_results) >= limit / 2:
                         search_results = reranked_results
                     else:
-                        # Just use the top from the original results
                         search_results = search_results[:limit]
                     
                     print("Results reranked by Gemini LLM")
                 else:
-                    # Fall back to original top results
                     search_results = search_results[:limit]
             except Exception as e:
                 print(f"Error during reranking: {e}")
-                # Fall back to original top results
                 search_results = search_results[:limit]
         else:
-            # Use original top results
             search_results = search_results[:limit]
             
-        # Print the results
         print(f"Search results:")
         for idx, result in enumerate(search_results[:limit]):
             print(f"Result #{idx+1}")
@@ -595,7 +552,6 @@ class QdrantRAGManager:
                 print(f"Metadata: {', '.join([f'{k}: {v}' for k, v in metadata.items()])}")
             print()
         
-        # Return RAG response if requested
         if return_rag_response:
             return self.generate_rag_response(query_text, search_results)
         
@@ -618,13 +574,11 @@ class QdrantRAGManager:
         if not search_results:
             return "I couldn't find any relevant information to answer your query."
         
-        # Construct context from search results
         context = "\n\n".join([
             f"Document {i+1}:\n{result.payload.get('text', '')}"
             for i, result in enumerate(search_results)
         ])
         
-        # Generate answer with Gemini
         model = genai.GenerativeModel(self.gemini_model_name)
         
         prompt = f"""
@@ -646,7 +600,6 @@ class QdrantRAGManager:
             return f"Error generating answer: {str(e)}"
 
 
-# Example of how to use the enhanced code
 def example_usage():
     # Sample data
     sample_data = [
@@ -661,9 +614,9 @@ def example_usage():
     },
     ]
     
-    # Configuration
-    qdrant_host = "localhost"  # Replace with your cloud Qdrant instance
-    qdrant_port = 6333  # Default Qdrant port
+    # 
+    qdrant_host = "localhost"  
+    qdrant_port = 6333 
     collection_name = "documents"
     gemini_api_key = os.environ.get("GEMINI_API_KEY")
     
@@ -678,32 +631,29 @@ def example_usage():
         connection_timeout=15
     )
     
-    # Upload data with agentic chunking
     result = rag_manager.upload_data(
         data=sample_data,
-        use_chunking=True,  # Enable agentic chunking
+        use_chunking=True,  
         recreate_collection=True
     )
     
     if result["status"] == "success":
         print(f"Successfully uploaded {result['points_uploaded']} points")
         
-        # Example 1: Regular search without RAG
         print("\n=== REGULAR SEARCH EXAMPLE ===")
         search_results = rag_manager.search(
             query_text="Hii my name is ana?",
             limit=1,
             rerank=True,
-            return_rag_response=False  # Just return search results
+            return_rag_response=False
         )
         
-        # Example 2: Search with RAG response
         print("\n=== RAG RESPONSE EXAMPLE ===")
         rag_response = rag_manager.search(
             query_text="Hii my name is ana",
             limit=1,
             rerank=True,
-            return_rag_response=True  # Generate a RAG response
+            return_rag_response=True 
         )
         print("\nRAG Response:")
         print(rag_response)
@@ -712,5 +662,4 @@ def example_usage():
 
 
 if __name__ == "__main__":
-    # Example usage
     example_usage()

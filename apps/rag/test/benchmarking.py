@@ -50,7 +50,6 @@ class Benchmark:
         func_name = func.__name__
         print(f"Benchmarking {func_name}...")
         
-        # Perform warm-up runs
         if self.warmup_runs > 0:
             if self.show_progress:
                 print(f"Performing {self.warmup_runs} warm-up run(s)...")
@@ -65,7 +64,6 @@ class Benchmark:
                     print(f"Error during warm-up: {e}")
                     return {"error": str(e)}
         
-        # Perform timed runs
         timing_results = []
         
         if self.show_progress:
@@ -84,7 +82,6 @@ class Benchmark:
                 print(f"Error during benchmark run: {e}")
                 return {"error": str(e)}
         
-        # Calculate statistics
         stats = {
             "function": func_name,
             "runs": self.runs,
@@ -104,7 +101,6 @@ class Benchmark:
             "raw_timings": timing_results
         })
         
-        # Print results
         self._print_results(stats)
         
         return stats
@@ -143,15 +139,12 @@ class Benchmark:
         if labels is None:
             labels = [f[0].__name__ for f in funcs]
         
-        # Reset results
         self.results = []
         
-        # Run benchmarks for each function
         for (func, kwargs), label in zip(funcs, labels):
             print(f"\nBenchmarking {label}...")
             self.run(func, **kwargs)
         
-        # Generate comparison report
         comparison = {
             "benchmark_name": self.name,
             "runs": self.runs,
@@ -162,7 +155,6 @@ class Benchmark:
             "max_times": [r["stats"]["max"] for r in self.results]
         }
         
-        # Print comparison
         print("\n" + "=" * 60)
         print(f"BENCHMARK COMPARISON: {self.name}")
         print("=" * 60)
@@ -177,7 +169,6 @@ class Benchmark:
         
         print("=" * 60)
         
-        # Create plots if requested
         if plot:
             self._create_comparison_plots(comparison)
         
@@ -188,7 +179,6 @@ class Benchmark:
         try:
             plt.figure(figsize=(10, 6))
             
-            # Bar chart for mean times
             plt.subplot(1, 2, 1)
             plt.bar(comparison["functions"], comparison["mean_times"])
             plt.title("Mean Execution Time")
@@ -196,7 +186,6 @@ class Benchmark:
             plt.xticks(rotation=45, ha="right")
             plt.tight_layout()
             
-            # Box plot from raw data
             plt.subplot(1, 2, 2)
             data = [r["raw_timings"] for r in self.results]
             plt.boxplot(data, labels=comparison["functions"])
@@ -233,10 +222,8 @@ def benchmark(runs: int = 5,
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
-            # Use function name if no custom name provided
             benchmark_name = name if name else f"Benchmark_{func.__name__}"
             
-            # Create and run benchmark
             bench = Benchmark(
                 name=benchmark_name,
                 runs=runs,
@@ -246,7 +233,6 @@ def benchmark(runs: int = 5,
             
             stats = bench.run(func, *args, **kwargs)
             
-            # Call the original function and return its result
             return func(*args, **kwargs)
         
         return wrapper
@@ -254,9 +240,7 @@ def benchmark(runs: int = 5,
     return decorator
 
 
-# Example usage if run directly
 if __name__ == "__main__":
-    # Example functions to benchmark
     def slow_function(n=1000000):
         """A deliberately slow function for testing."""
         result = 0
@@ -268,18 +252,15 @@ if __name__ == "__main__":
         """A faster version of the same calculation."""
         return sum(range(n))
     
-    # Example 1: Using the benchmark class directly
     bench = Benchmark(name="Simple Test", runs=3, warmup_runs=1)
     bench.run(slow_function, 500000)
     
-    # Example 2: Using the decorator
     @benchmark(runs=3, name="Decorated Function Test")
     def test_function():
         return slow_function(300000)
     
     result = test_function()
     
-    # Example 3: Comparing functions
     bench = Benchmark(name="Function Comparison", runs=3)
     bench.compare(
         funcs=[

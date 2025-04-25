@@ -12,7 +12,6 @@ from embedding_pipeline.utils.logging import setup_logger
 
 def main():
     """Main entry point for the embedding pipeline."""
-    # Set up logging
     logger = setup_logger("embedding_pipeline", Config.get_logging_config())
     logger.info("Starting embedding pipeline application")
     
@@ -38,7 +37,6 @@ def main():
             logger=logger
         )
         
-        # Run pipeline
         logger.info("Starting pipeline execution")
         pipeline.run()
     except KeyboardInterrupt:

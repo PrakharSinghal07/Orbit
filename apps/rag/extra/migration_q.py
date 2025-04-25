@@ -15,7 +15,6 @@ import google.generativeai as genai
 from tqdm import tqdm
 from apps.rag.test.benchmarking import Benchmark, benchmark
 
-# Constants for chunking
 DEFAULT_CHUNK_SIZE = 500
 DEFAULT_CHUNK_OVERLAP = 50
 MAX_CHUNK_SIZE = 2000
@@ -63,7 +62,6 @@ class AgenticChunker:
         Returns:
             Dict with chunking recommendations
         """
-        # Take a sample of the document if it's very long
         sample = text[:10000] if len(text) > 10000 else text
         
         prompt = f"""
@@ -90,17 +88,13 @@ class AgenticChunker:
         response = self.model.generate_content(prompt)
         response_text = response.text
         
-        # Extract JSON from response
         try:
-            # This is a simple approach - in a robust implementation, you'd want better JSON extraction
             import json
-            # Find JSON content (between { and })
             json_match = re.search(r'(\{.*\})', response_text.replace('\n', ' '), re.DOTALL)
             if json_match:
                 json_str = json_match.group(1)
                 recommendations = json.loads(json_str)
             else:
-                # Fallback to default values
                 recommendations = {
                     "chunk_size": DEFAULT_CHUNK_SIZE,
                     "chunk_overlap": DEFAULT_CHUNK_OVERLAP,
@@ -143,7 +137,6 @@ class AgenticChunker:
         
         chunks = []
         
-        # Simple chunking by paragraphs first, then by size
         if "paragraph" in respect_boundaries:
             paragraphs = re.split(r'\n\s*\n', text)
             
@@ -157,10 +150,8 @@ class AgenticChunker:
                     
                 para_length = len(para)
                 
-                # If paragraph alone exceeds max chunk size, split it further
                 if para_length > chunk_size:
                     if current_chunk:
-                        # Add current accumulated chunk
                         chunks.append({
                             "text": current_chunk,
                             "metadata": {
@@ -172,7 +163,6 @@ class AgenticChunker:
                         current_chunk = ""
                         current_length = 0
                     
-                    # Split long paragraph into smaller chunks
                     words = para.split()
                     sub_chunk = ""
                     for word in words:
@@ -193,7 +183,6 @@ class AgenticChunker:
                         current_chunk = sub_chunk
                         current_length = len(sub_chunk)
                 else:
-                    # If adding this paragraph exceeds chunk size, start new chunk
                     if current_length + para_length + 1 > chunk_size:
                         chunks.append({
                             "text": current_chunk,
@@ -206,11 +195,9 @@ class AgenticChunker:
                         current_chunk = para
                         current_length = para_length
                     else:
-                        # Add to current chunk
                         current_chunk += "\n\n" + para if current_chunk else para
                         current_length += para_length + 2
             
-            # Add final chunk
             if current_chunk:
                 chunks.append({
                     "text": current_chunk,
@@ -221,10 +208,9 @@ class AgenticChunker:
                     }
                 })
         else:
-            # Fallback to simple overlapping chunks
             for i in range(0, len(text), chunk_size - chunk_overlap):
                 chunk_text = text[i:i + chunk_size]
-                if len(chunk_text) < 50:  # Skip very small chunks at the end
+                if len(chunk_text) < 50:  
                     continue
                 chunks.append({
                     "text": chunk_text,
@@ -236,7 +222,6 @@ class AgenticChunker:
                     }
                 })
                 
-        # Use Gemini to generate summaries for larger chunks
         if recommendations.get("hierarchical", False):
             print("Generating summaries for hierarchical representation...")
             for i, chunk in enumerate(chunks):
@@ -337,7 +322,6 @@ def push_data_to_qdrant(
                 {"id": 3, "text": "Vector databases are essential for semantic search", "metadata": {"category": "databases"}}
             ]
         
-        # Set up chunker if needed
         chunker = None
         if use_chunking:
             chunker = AgenticChunker(gemini_api_key=gemini_api_key)
@@ -348,12 +332,10 @@ def push_data_to_qdrant(
         for item_idx, item in enumerate(tqdm(data)):
             text = item.get("text", "")
             
-            # Skip empty texts
             if not text.strip():
                 print(f"Skipping item {item_idx} - empty text")
                 continue
             
-            # Apply chunking if enabled and text is long enough
             processed_items = []
             if chunker and len(text) > DEFAULT_CHUNK_SIZE:
                 chunks = chunker.chunk_text(text, item.get("metadata", {}))
@@ -362,10 +344,8 @@ def push_data_to_qdrant(
                     if isinstance(original_id, str) and original_id.isdigit():
                         original_id = int(original_id)
         
-                    # Generate a unique integer ID for the chunk
-                    chunk_id = int(f"{original_id}{i:03d}")  # e.g. if original_id=1, chunk_ids will be 1000, 1001, 1002...
+                    chunk_id = int(f"{original_id}{i:03d}") 
         
-                    # Create a new item for each chunk
                     chunk_item = {
                         "id": chunk_id,
                         "text": chunk["text"],
@@ -378,10 +358,9 @@ def push_data_to_qdrant(
                     }
                     processed_items.append(chunk_item)
             else:
-                # If chunking is disabled or text is short enough, use the original item
                item_id = item.get("id", item_idx)
                if isinstance(item_id, str) and item_id.isdigit():
-                    item_id = int(item_id)  # Convert string digits to int
+                    item_id = int(item_id)  
     
                processed_items.append({
                     "id": item_id,
@@ -389,15 +368,12 @@ def push_data_to_qdrant(
                     "metadata": item.get("metadata", {})
                })
             
-            # Embed and create points for each processed item
             for proc_item in processed_items:
                 item_text = proc_item["text"]
                 
-                # Create instruction-following version of text for the E5 model
                 instruction_text = f"query: {item_text}"
                 embedding = model.encode(instruction_text)
                 
-                # Create the point with proper ID handling
                 point_id = proc_item["id"]
                 if isinstance(point_id, str) and point_id.isdigit():
                     point_id = int(point_id)
@@ -413,7 +389,6 @@ def push_data_to_qdrant(
                 points.append(point)
         
         print(f"Uploading {len(points)} points to collection '{collection_name}'...")
-        # Upload in batches to avoid payload size limitations
         batch_size = 100
         for i in range(0, len(points), batch_size):
             batch = points[i:i + batch_size]
@@ -459,11 +434,9 @@ def search_with_gemini(
         print(f"\nPerforming search in '{collection_name}' for: '{query_text}'")
         model = SentenceTransformer(model_name)
         
-        # Create instruction-following version of query for the E5 model
         instruction_query = f"query: {query_text}"
         query_vector = model.encode(instruction_query).tolist()
         
-        # Retrieve more results than requested if reranking
         search_limit = limit * 3 if rerank else limit
         
         search_results = client.query_points(
@@ -524,7 +497,6 @@ def search_with_gemini(
                 if id_match:
                     reranked_ids = json.loads(id_match.group(1))
                     
-                    # Map back to the original results and get top results
                     id_to_result = {str(result.id): result for result in search_results}
                     reranked_results = []
                     
@@ -535,7 +507,6 @@ def search_with_gemini(
                             if len(reranked_results) >= limit:
                                 break
                     
-                    # Fall back to original if reranking returned too few results
                     if reranked_results and len(reranked_results) >= limit / 2:
                         search_results = reranked_results
                     
