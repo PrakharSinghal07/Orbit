@@ -1,30 +1,54 @@
+:root {
+  --sidebar-bg: #E3F2FD;
+  --sidebar-text: #0d0d0d;
+  --sidebar-hover-bg: #bbdefb;
+  --sidebar-hover-bg-strong: #90caf9;
+  --scrollbar-thumb: #c0d7ec;
+  --scrollbar-thumb-hover: #a9c5e2;
+  --recent-entry-text: #333;
+  --bottom-item-text: #555;
+}
+
+.dark-mode {
+  --sidebar-bg: #1f1f1f;
+  --sidebar-text: #f3f3f3;
+  --sidebar-hover-bg: #312f2f;
+  --sidebar-hover-bg-strong: #444;
+  --scrollbar-thumb: #555;
+  --scrollbar-thumb-hover: #777;
+  --recent-entry-text: #f3f3f3;
+  --bottom-item-text: #b0b0b0;
+}
+
+
 .sidebar {
   height: 100vh;
   max-width: 250px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  background-color: rgb(62, 62, 62);
+  background-color: var(--sidebar-bg);
   padding: 20px 15px;
   position: fixed;
   top: 0;
   left: 0;
   z-index: 10000;
-  transition:  padding 0.3s ease;
-  overflow-y: auto; /* Enable scrolling within the sidebar */
+  transition: padding 0.3s ease, background-color 0.3s ease;
+  overflow-y: auto;
+  color: var(--sidebar-text);
 }
 
 .sidebar::-webkit-scrollbar {
-  width: 8px; /* Customize scrollbar width */
+  width: 8px;
 }
 
 .sidebar::-webkit-scrollbar-thumb {
-  background-color: #555; /* Customize scrollbar color */
-  border-radius: 4px; /* Rounded scrollbar */
+  background-color: var(--scrollbar-thumb);
+  border-radius: 4px;
 }
 
 .sidebar::-webkit-scrollbar-thumb:hover {
-  background-color: #777; /* Darker color on hover */
+  background-color: var(--scrollbar-thumb-hover);
 }
 
 .sidebar.expanded {
@@ -45,9 +69,6 @@
   display: block;
   margin-left: 10px;
   cursor: pointer;
-  /* background-color: white; */
-  /* color: white; */
-  
 }
 
 .sidebar .menu_icon:hover {
@@ -61,16 +82,16 @@
   justify-content: center;
   gap: 10px;
   padding: 10px 15px;
-  background-color: #e6eaf1;
+  background-color: var(--sidebar-hover-bg);
   border-radius: 50px;
   font-size: 14px;
-  color: rgb(0, 0, 0);
+  color: var(--sidebar-text);
   cursor: pointer;
   transition: background-color 0.3s ease, transform 0.3s ease;
 }
 
 .sidebar .new_chat:hover {
-  background-color: #d4d9e3;
+  background-color: var(--sidebar-hover-bg-strong);
   transform: translateY(-2px);
 }
 
@@ -84,37 +105,34 @@
   margin-top: 30px;
   margin-bottom: 20px;
   font-size: 16px;
-  color: #ffffff;
+  color: var(--sidebar-text);
 }
 
 .sidebar .recent_entry {
   display: flex;
   align-items: center;
-  /* justify-content: center; */
   gap: 10px;
   padding: 10px;
-  /* padding-left: 0px; */
-  /* padding-right: 40px; */
   border-radius: 5px;
-  color: #f3f3f3;
+  color: var(--recent-entry-text);
   cursor: pointer;
   transition: background-color 0.3s ease, transform 0.3s ease;
-  /* background-color: rgb(9, 9, 9); */
 }
 
-.recent_entry p{
-  font-size: 17px;
-}
 .sidebar .recent_entry:hover {
-  /* background-color: #3a3b3c; */
+  background-color: var(--sidebar-hover-bg);
   transform: translateX(2px);
 }
 
-.active{
-  background-color: rgb(34, 34, 34);
+.sidebar .recent_entry p {
+  font-size: 17px;
 }
 
-.chatName{
+.active {
+  background-color: var(--sidebar-hover-bg);
+}
+
+.chatName {
   display: flex;
   width: 100%;
   justify-content: space-between;
@@ -133,13 +151,13 @@
   gap: 10px;
   padding: 10px;
   border-radius: 50px;
-  color: #b0b0b0;
+  color: var(--bottom-item-text);
   cursor: pointer;
   transition: background-color 0.3s ease, transform 0.3s ease;
 }
 
 .sidebar .bottom_item:hover {
-  background-color: #3a3b3c;
+  background-color: var(--sidebar-hover-bg);
   transform: translateY(-2px);
 }
 
@@ -154,10 +172,6 @@
 }
 
 @keyframes fadeIn {
-  0% {
-    opacity: 0;
-  }
-  100% {
-    opacity: 1;
-  }
+  0% { opacity: 0; }
+  100% { opacity: 1; }
 }

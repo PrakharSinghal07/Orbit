@@ -11,6 +11,7 @@ const Sidebar = () => {
     setActiveConversationId,
     activeConversationId,
     createNewChat,
+    stopReply
   } = useContext(Context);
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
   const [conversations, setConversations] = useState([]);
@@ -45,10 +46,12 @@ const Sidebar = () => {
           className="menu_icon"
           src={assets.menu_bar}
           alt="Menu"
-          onClick={handleMenuIconClicked}
+          onClick={() => {
+            handleMenuIconClicked()
+          }}
         />
         <div className="new_chat" onClick={createNewChat}>
-          <img src={assets.plus_icon} alt="New Chat" />
+          {!sidebarExpanded && <img src={assets.plus_icon} alt="New Chat" />}
           {sidebarExpanded && <p>New Chat</p>}
         </div>
         {sidebarExpanded && (
@@ -60,7 +63,10 @@ const Sidebar = () => {
                 className={`chat-title recent_entry ${
                   activeConversationId === conv.sessionId ? "active" : ""
                 }`}
-                onClick={() => setActiveConversationId(conv.sessionId)}
+                onClick={() => {
+                  activeConversationId !== conv.sessionId && stopReply()
+                  setActiveConversationId(conv.sessionId)
+                }}
               >
                 <p className="chatName">
                   <span>
