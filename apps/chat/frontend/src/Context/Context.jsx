@@ -144,7 +144,6 @@ const ContextProvider = (props) => {
         const result = await response.json();
         console.log("Raw result object:", result);
 
-        // Use the answer property instead of response
         if (result && result.answer) {
           botReply = { response: result.answer };
         } else {
