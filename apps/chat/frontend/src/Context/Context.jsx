@@ -7,7 +7,7 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const generateNewChat = async () => {
   try {
-    const response = await fetch("http://localhost:8080/conversation/create", {
+    const response = await fetch("http://localhost:8000/conversation/create", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -45,6 +45,7 @@ const ContextProvider = (props) => {
   const [updateSidebar, setUpdateSidebar] = useState(true);
   const [updateSidebar2, setUpdateSidebar2] = useState(true);
   const createNewChat = async () => {
+    stopReply();
     if (conversation.title !== "New Chat") {
       const newChat = await generateNewChat();
       setConversation(newChat);
@@ -55,7 +56,7 @@ const ContextProvider = (props) => {
   useEffect(() => {
     const getConvo = async () => {
       const response = await fetch(
-        `http://127.0.0.1:8080/conversation/initial`,
+        `http://127.0.0.1:8000/conversation/initial`,
         {
           method: "GET",
         }
@@ -73,29 +74,31 @@ const ContextProvider = (props) => {
   useEffect(() => {
     if (!activeConversationId) return;
     const getCurrentConversation = async () => {
+      stopReplyRef.current = true;
       const response = await fetch(
-        `http://127.0.0.1:8080/conversation/active/${activeConversationId}`
+        `http://127.0.0.1:8000/conversation/active/${activeConversationId}`
       );
       const result = await response.json();
-      if (result && result.sessionId !== conversation.sessionId)
+      if (result && result.sessionId !== conversation.sessionId){
         setConversation(result);
+      }
     };
     getCurrentConversation();
   }, [activeConversationId]);
 
-  // const getSuggestions = async () => {
-  //   try {
-  //     const response = await fetch("http://127.0.0.1:8000/suggestions/");
-  //     const data = await response.json();
-  //     setSuggestions(data.suggestions);
-  //   } catch (error) {
-  //     console.error("Error fetching suggestions:", error);
-  //   }
-  // };
+  const getSuggestions = async () => {
+    try {
+      const response = await fetch("http://127.0.0.1:8000/suggestions/");
+      const data = await response.json();
+      setSuggestions(data.suggestions);
+    } catch (error) {
+      console.error("Error fetching suggestions:", error);
+    }
+  };
 
-  // useEffect(() => {
-  //   getSuggestions();
-  // }, []);
+  useEffect(() => {
+    getSuggestions();
+  }, []);
 
   const onSent = async (prompt, file) => {
     const userPrompt = prompt || input;
@@ -116,9 +119,9 @@ const ContextProvider = (props) => {
 
     setInput("");
 
-    const formData = new FormData();
-    formData.append("message", userPrompt);
-    if (file) formData.append("file", file);
+    // const formData = new FormData();
+    // formData.append("message", userPrompt);
+    // if (file) formData.append("file", file);
 
     const userPayload = {
       query: userPrompt,
@@ -167,22 +170,40 @@ const ContextProvider = (props) => {
 
     await sleep(1000);
 
-    setConversation((prev) => {
-      const updatedMessages = [...prev.messages];
 
-      updatedMessages[updatedMessages.length - 1] = {
-        type: "bot",
-        text: formattedResponse,
-      };
-      return {
-        ...prev,
-        messages: updatedMessages,
-      };
-    });
+    let currentIndex = 0;
 
-    const saveToBackend = async () => {
+    const typeBotResponse = () => {
+      setConversation((prev) => {
+        const updatedMessages = [...prev.messages];
+        const currentText = formattedResponse.slice(0, currentIndex);
+        updatedMessages[updatedMessages.length - 1] = {
+          type: "bot",
+          text: marked(currentText),
+        };
+        return {
+          ...prev,
+          messages: updatedMessages,
+        };
+      });
+
+      currentIndex++;
+
+      if (currentIndex <= formattedResponse.length && !stopReplyRef.current) {
+        setTimeout(typeBotResponse, 10);
+      } else {
+        saveToBackend();
+        setLoading(false);
+        setStopIcon(false);
+        setAllowSending(true);
+      }
+    };
+
+    typeBotResponse();
+
+    async function saveToBackend() {
       const response = await fetch(
-        `http://127.0.0.1:8080/conversation/${activeConversationId}`,
+        `http://127.0.0.1:8000/conversation/${activeConversationId}`,
         {
           method: "POST",
           headers: {
@@ -205,11 +226,8 @@ const ContextProvider = (props) => {
         }));
       }
     };
-    saveToBackend();
 
     setLoading(false);
-    setStopIcon(false);
-    setAllowSending(true);
   };
 
   const stopReply = () => {
@@ -217,6 +235,21 @@ const ContextProvider = (props) => {
     setLoading(false);
     setAllowSending(true);
     setStopIcon(false);
+    setInput("");
+    
+    setConversation(prev => {
+      const messages = [...prev.messages];
+      if (messages.length && messages[messages.length - 1].type === "bot") {
+        messages[messages.length - 1] = {
+          type: "bot",
+          text: messages[messages.length - 1].text
+        };
+      }
+      return {
+        ...prev,
+        messages
+      };
+    });
   };
 
   return (
