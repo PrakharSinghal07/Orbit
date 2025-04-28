@@ -601,7 +601,6 @@ class QdrantRAGManager:
 
 
 def example_usage():
-    # Sample data
     sample_data = [
        {
         "id": 1,

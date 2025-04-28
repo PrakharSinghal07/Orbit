@@ -7,7 +7,6 @@ from sentence_transformers import SentenceTransformer
 from tqdm import tqdm
 from apps.rag.test.benchmarking import Benchmark, benchmark
 
-# Constants
 COLLECTION_NAME = "benchmark_collection"
 MODEL_NAME = 'intfloat/multilingual-e5-large-instruct'
 QDRANT_URL = "https://00819855-01e9-4396-a2b5-5a856fe32d73.eu-central-1-0.aws.cloud.qdrant.io:6333"
