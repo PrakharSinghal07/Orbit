@@ -123,7 +123,7 @@ const ContextProvider = (props) => {
     // formData.append("message", userPrompt);
     // if (file) formData.append("file", file);
 
-    const userPayload = {
+    userPayload = {
       query: userPrompt,
       collection_name: "SLURM",
       k: 3,
@@ -132,8 +132,10 @@ const ContextProvider = (props) => {
     };
 
     let botReply;
+    const apiUrl = import.meta.env.VITE_API_URL;
+    console.log(apiUrl);
     try {
-      const response = await fetch(" http://34.93.92.50:8000/rag/answer", {
+      const response = await fetch(`http://34.47.155.223:8000/rag/answer`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -169,7 +171,7 @@ const ContextProvider = (props) => {
     );
 
     await sleep(1000);
-
+    
 
     let currentIndex = 0;
 

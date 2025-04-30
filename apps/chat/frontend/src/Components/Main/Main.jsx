@@ -1,11 +1,22 @@
-import React, { useContext, useRef, useState } from "react";
+import React, { useContext, useEffect, useRef, useState } from "react";
 import "./Main.css";
 import { assets } from "../../assets/assets";
 import Card from "./Card";
 import { Context } from "../../Context/Context";
 
 const Main = () => {
+  const theme = localStorage.getItem('theme')
   const [isDarkMode, setIsDarkMode] = useState(true);
+  useEffect(() => {
+    if(theme === 'dark'){
+      document.documentElement.classList.add("dark-mode");
+      setIsDarkMode(true)
+    }
+    else{
+      document.documentElement.classList.remove("dark-mode");
+      setIsDarkMode(false)
+    }
+  }, [])
   const [file, setFile] = useState(null);
   const {
     onSent,
@@ -28,8 +39,10 @@ const Main = () => {
     setIsDarkMode((prevMode) => {
       const newMode = !prevMode;
       if (newMode) {
+        localStorage.setItem('theme', 'dark')
         document.documentElement.classList.add("dark-mode");
       } else {
+        localStorage.setItem('theme', 'light')
         document.documentElement.classList.remove("dark-mode");
       }
       return newMode;

@@ -1,12 +1,14 @@
 :root {
-  --sidebar-bg: #E3F2FD;
+  --sidebar-bg: #ddeaf4;
   --sidebar-text: #0d0d0d;
   --sidebar-hover-bg: #bbdefb;
-  --sidebar-hover-bg-strong: #90caf9;
+  --sidebar-hover-bg-strong: #bbdefb;
+  --sidebar-newchat-bg: #bbdefb;
   --scrollbar-thumb: #c0d7ec;
   --scrollbar-thumb-hover: #a9c5e2;
   --recent-entry-text: #333;
   --bottom-item-text: #555;
+
 }
 
 .dark-mode {
@@ -14,6 +16,7 @@
   --sidebar-text: #f3f3f3;
   --sidebar-hover-bg: #312f2f;
   --sidebar-hover-bg-strong: #444;
+  --sidebar-newchat-bg: #908b8b;
   --scrollbar-thumb: #555;
   --scrollbar-thumb-hover: #777;
   --recent-entry-text: #f3f3f3;
@@ -65,10 +68,12 @@
   transition: transform 0.3s ease;
 }
 
-.sidebar .menu_icon {
+.sidebar .menu-icon {
   display: block;
   margin-left: 10px;
   cursor: pointer;
+  /* transform: translate(5px, 3px); */
+  transform: translate(-3px, 3px);
 }
 
 .sidebar .menu_icon:hover {
@@ -82,12 +87,18 @@
   justify-content: center;
   gap: 10px;
   padding: 10px 15px;
-  background-color: var(--sidebar-hover-bg);
+  background-color: var(--sidebar-newchat-bg);
   border-radius: 50px;
-  font-size: 14px;
+  font-size: 19px;
   color: var(--sidebar-text);
   cursor: pointer;
   transition: background-color 0.3s ease, transform 0.3s ease;
+  user-select: none;
+}
+.newchat_expanded{
+  background-color: var(--sidebar-hover-bg-strong) !important;
+  border-radius: 5px !important;
+
 }
 
 .sidebar .new_chat:hover {
@@ -106,6 +117,7 @@
   margin-bottom: 20px;
   font-size: 16px;
   color: var(--sidebar-text);
+  user-select: none;
 }
 
 .sidebar .recent_entry {
@@ -117,6 +129,7 @@
   color: var(--recent-entry-text);
   cursor: pointer;
   transition: background-color 0.3s ease, transform 0.3s ease;
+  user-select: none;
 }
 
 .sidebar .recent_entry:hover {
