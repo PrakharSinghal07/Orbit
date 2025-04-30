@@ -203,21 +203,22 @@ const ContextProvider = (props) => {
     typeBotResponse();
 
     async function saveToBackend() {
-      // const response = await fetch(
-      //   `http://127.0.0.1:8000/conversation/${activeConversationId}`,
-      //   {
-      //     method: "POST",
-      //     headers: {
-      //       "Content-type": "application/json",
-      //     },
-      //     body: JSON.stringify({
-      //       userMsg: userMessage,
-      //       botMsg: { type: "bot", text: formattedResponse },
-      //       prompt: userPrompt,
-      //     }),
-      //   }
-      // );
-      // const result = await response.json();
+      const response = await fetch(
+        `http://127.0.0.1:8000/conversation/${activeConversationId}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-type": "application/json",
+          },
+          body: JSON.stringify({
+            userMsg: userMessage,
+            botMsg: { type: "bot", text: formattedResponse },
+            prompt: userPrompt,
+          }),
+        }
+      );
+      const result = await response.json();
+      console.log("savedddddd", result);
       setUpdateSidebar(!updateSidebar);
 
       if (conversation.title === "New Chat") {
