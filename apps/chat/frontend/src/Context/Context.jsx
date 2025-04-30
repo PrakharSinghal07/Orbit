@@ -132,7 +132,8 @@ const ContextProvider = (props) => {
     };
 
     let botReply;
-    const apiUrl = process.env.URL;
+    const apiUrl = import.meta.env.VITE_API_URL;
+    console.log(apiUrl);
     try {
       const response = await fetch(`${apiUrl}/rag/answer`, {
         method: "POST",
