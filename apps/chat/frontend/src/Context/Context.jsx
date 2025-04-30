@@ -123,7 +123,7 @@ const ContextProvider = (props) => {
     // formData.append("message", userPrompt);
     // if (file) formData.append("file", file);
 
-    userPayload = {
+    const userPayload = {
       query: userPrompt,
       collection_name: "SLURM",
       k: 3,
