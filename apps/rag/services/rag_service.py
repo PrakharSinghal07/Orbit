@@ -93,7 +93,7 @@ class RAGService:
                     "question": query_text,
                     "answer": "I couldn't find any relevant information to answer your question.",
                     "retrieved_documents": [],
-                    "used_model_knowledge": False
+                    "used_model_knowledge": True
                 }
         
         documents = []

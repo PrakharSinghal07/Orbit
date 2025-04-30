@@ -79,7 +79,7 @@ const ContextProvider = (props) => {
         `http://127.0.0.1:8000/conversation/active/${activeConversationId}`
       );
       const result = await response.json();
-      if (result && result.sessionId !== conversation.sessionId){
+      if (result && result.sessionId !== conversation.sessionId) {
         setConversation(result);
       }
     };
@@ -100,7 +100,7 @@ const ContextProvider = (props) => {
     getSuggestions();
   }, []);
 
-  const onSent = async (prompt, file) => {
+  const onSent = async (prompt) => {
     const userPrompt = prompt || input;
 
     setAllowSending(false);
@@ -125,15 +125,16 @@ const ContextProvider = (props) => {
 
     const userPayload = {
       query: userPrompt,
-      collection_name: "SLURM",
+      collection_name: "documents",
       k: 3,
       expand_with_model_knowledge: true,
       gemini_api_key: "AIzaSyCHrXPFGHX565uVzOVECqjsN6m77_VN9n0",
     };
 
     let botReply;
+    const apiUrl = process.env.URL;
     try {
-      const response = await fetch(" http://34.93.92.50:8000/rag/answer", {
+      const response = await fetch(`${apiUrl}/rag/answer`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -170,7 +171,6 @@ const ContextProvider = (props) => {
 
     await sleep(1000);
 
-
     let currentIndex = 0;
 
     const typeBotResponse = () => {
@@ -202,21 +202,21 @@ const ContextProvider = (props) => {
     typeBotResponse();
 
     async function saveToBackend() {
-      const response = await fetch(
-        `http://127.0.0.1:8000/conversation/${activeConversationId}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-type": "application/json",
-          },
-          body: JSON.stringify({
-            userMsg: userMessage,
-            botMsg: { type: "bot", text: formattedResponse },
-            prompt: userPrompt,
-          }),
-        }
-      );
-      const result = await response.json();
+      // const response = await fetch(
+      //   `http://127.0.0.1:8000/conversation/${activeConversationId}`,
+      //   {
+      //     method: "POST",
+      //     headers: {
+      //       "Content-type": "application/json",
+      //     },
+      //     body: JSON.stringify({
+      //       userMsg: userMessage,
+      //       botMsg: { type: "bot", text: formattedResponse },
+      //       prompt: userPrompt,
+      //     }),
+      //   }
+      // );
+      // const result = await response.json();
       setUpdateSidebar(!updateSidebar);
 
       if (conversation.title === "New Chat") {
@@ -225,7 +225,7 @@ const ContextProvider = (props) => {
           title: userPrompt.slice(0, 20),
         }));
       }
-    };
+    }
 
     setLoading(false);
   };
@@ -236,18 +236,18 @@ const ContextProvider = (props) => {
     setAllowSending(true);
     setStopIcon(false);
     setInput("");
-    
-    setConversation(prev => {
+
+    setConversation((prev) => {
       const messages = [...prev.messages];
       if (messages.length && messages[messages.length - 1].type === "bot") {
         messages[messages.length - 1] = {
           type: "bot",
-          text: messages[messages.length - 1].text
+          text: messages[messages.length - 1].text,
         };
       }
       return {
         ...prev,
-        messages
+        messages,
       };
     });
   };
