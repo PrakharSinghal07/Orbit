@@ -135,7 +135,7 @@ const ContextProvider = (props) => {
     const apiUrl = import.meta.env.VITE_API_URL;
     console.log(apiUrl);
     try {
-      const response = await fetch(`${apiUrl}/rag/answer`, {
+      const response = await fetch("/api/proxy", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
