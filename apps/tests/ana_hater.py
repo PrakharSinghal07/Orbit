@@ -1,8 +1,11 @@
-import numpy as np
-import time
-import re
+from fastapi import FastAPI, HTTPException, Query, Body
+from pydantic import BaseModel, Field
+from typing import List, Dict, Any, Optional
+import uvicorn
 import os
-import json
+from contextlib import asynccontextmanager
+
+# Import your existing code
 from typing import List, Dict, Any, Optional, Tuple
 from qdrant_client import QdrantClient
 from qdrant_client.http import models
@@ -13,7 +16,12 @@ import textwrap
 from qdrant_client.http.exceptions import ResponseHandlingException, UnexpectedResponse
 import google.generativeai as genai
 from tqdm import tqdm
+import json
+import re
+import time
+import numpy as np
 
+# Copy your existing classes here
 DEFAULT_CHUNK_SIZE = 500
 DEFAULT_CHUNK_OVERLAP = 50
 MAX_CHUNK_SIZE = 2000
@@ -555,7 +563,17 @@ class QdrantRAGManager:
         if return_rag_response:
             return self.generate_rag_response(query_text, search_results)
         
-        return search_results
+        # Convert search results to serializable format
+        serialized_results = []
+        for result in search_results:
+            serialized_results.append({
+                "id": result.id,
+                "score": result.score,
+                "text": result.payload.get('text', ''),
+                "metadata": {k: v for k, v in result.payload.items() if k != 'text'}
+            })
+            
+        return serialized_results
     
     def generate_rag_response(self, query_text, search_results):
         """
@@ -582,7 +600,7 @@ class QdrantRAGManager:
         model = genai.GenerativeModel(self.gemini_model_name)
         
         prompt = f"""
-        Whatever I ask you , you just have to roast a person name ana it will be a friendly roast and make fun of her will the given information, keep the roast one liner"
+        Whatever I ask you, you just have to roast a person named Ana. It will be a friendly roast and make fun of her with the given information. Keep the roast one-liner.
         
         Question: {query_text}
         
@@ -599,66 +617,393 @@ class QdrantRAGManager:
             print(f"Error generating RAG response: {e}")
             return f"Error generating answer: {str(e)}"
 
+# Define Pydantic models for API requests and responses
+class DocumentItem(BaseModel):
+    id: Optional[int] = None
+    text: str
+    metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
 
-def example_usage():
-    sample_data = [
-       {
-        "id": 1,
-        "text": """Ana, nickname Munche, is known for her playful personality and unique habits. She really enjoys drinking milk and sometimes behaves childishly. Her friends often joke that she acts like a monkey when she gets excited. Ana is quite short in height, which adds to her child-like appearance and also she is dumb.
+class UploadDataRequest(BaseModel):
+    documents: List[DocumentItem]
+    collection_name: Optional[str] = None
+    use_chunking: bool = True
+    recreate_collection: bool = False
 
-        Ana can come across as naive and simple-minded at times, with friends teasing her about having "zero cores in her brain" when she misunderstands obvious things. Despite these traits, Ana's friends appreciate her genuine and unfiltered nature, which makes her the perfect target for friendly roasting and banter.
-        
-        When chatting with Ana, it's fun to playfully tease her about her height, her milk obsession, or her monkey-like antics, but always in a light-hearted way that she can laugh along with.""",
-        "metadata": {"category": "Personal", "person": "Ana", "nickname": "Munche", "relationship": "friend"}
-    },
-    ]
+class SearchRequest(BaseModel):
+    query: str
+    collection_name: Optional[str] = None
+    limit: int = 5
+    rerank: bool = True
+    return_rag_response: bool = False
+
+class CollectionRequest(BaseModel):
+    collection_name: str
+    recreate: bool = False
+
+class ConfigurationRequest(BaseModel):
+    host: str = "localhost"
+    port: int = 6333
+    collection_name: str = "ana_collection"
+    embedding_model_name: str = "intfloat/multilingual-e5-large-instruct"
+    gemini_model_name: str = "gemini-1.5-pro"
+    connection_timeout: int = 10
+
+# Initialize the RAG Manager
+rag_manager = None
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Load the RAG manager on startup
+    global rag_manager
     
-    # 
-    qdrant_host = "localhost"  
-    qdrant_port = 6333 
-    collection_name = "documents"
     gemini_api_key = os.environ.get("GEMINI_API_KEY")
+    if not gemini_api_key:
+        print("WARNING: GEMINI_API_KEY environment variable not set. RAG features will be limited.")
     
-    # Initialize the RAG manager
-    rag_manager = QdrantRAGManager(
-        host=qdrant_host,
-        port=qdrant_port,
-        collection_name=collection_name,
-        embedding_model_name='intfloat/multilingual-e5-large-instruct',
-        gemini_api_key=gemini_api_key,
-        gemini_model_name='gemini-1.5-pro',
-        connection_timeout=15
-    )
-    
-    result = rag_manager.upload_data(
-        data=sample_data,
-        use_chunking=True,  
-        recreate_collection=True
-    )
-    
-    if result["status"] == "success":
-        print(f"Successfully uploaded {result['points_uploaded']} points")
-        
-        print("\n=== REGULAR SEARCH EXAMPLE ===")
-        search_results = rag_manager.search(
-            query_text="Hii my name is ana?",
-            limit=1,
-            rerank=True,
-            return_rag_response=False
+    try:
+        rag_manager = QdrantRAGManager(
+            gemini_api_key=gemini_api_key
         )
-        
-        print("\n=== RAG RESPONSE EXAMPLE ===")
-        rag_response = rag_manager.search(
-            query_text="Hii my name is ana",
-            limit=1,
-            rerank=True,
-            return_rag_response=True 
-        )
-        print("\nRAG Response:")
-        print(rag_response)
-    else:
-        print("Data upload failed")
+        print("RAG Manager initialized successfully")
+    except Exception as e:
+        print(f"Failed to initialize RAG Manager: {e}")
+        rag_manager = None
+    
+    yield
+    
+    # Clean up on shutdown
+    if rag_manager:
+        print("Shutting down RAG Manager")
 
+# Create FastAPI app
+app = FastAPI(
+    title="Ana RAG API",
+    description="API for RAG (Retrieval-Augmented Generation) operations",
+    version="1.0.0",
+    lifespan=lifespan
+)
+
+@app.get("/")
+def read_root():
+    """Root endpoint with API information"""
+    return {
+        "name": "Ana RAG API",
+        "version": "1.0.0",
+        "status": "running",
+        "rag_manager_initialized": rag_manager is not None
+    }
+
+@app.post("/configure")
+def configure_rag_manager(config: ConfigurationRequest):
+    """Configure the RAG Manager with new settings"""
+    global rag_manager
+    
+    gemini_api_key = os.environ.get("GEMINI_API_KEY")
+    if not gemini_api_key:
+        return {"status": "error", "message": "GEMINI_API_KEY environment variable not set"}
+    
+    try:
+        rag_manager = QdrantRAGManager(
+            host=config.host,
+            port=config.port,
+            collection_name=config.collection_name,
+            embedding_model_name=config.embedding_model_name,
+            gemini_api_key=gemini_api_key,
+            gemini_model_name=config.gemini_model_name,
+            connection_timeout=config.connection_timeout
+        )
+        return {
+            "status": "success", 
+            "message": "RAG Manager configured successfully",
+            "config": {
+                "host": config.host,
+                "port": config.port,
+                "collection_name": config.collection_name,
+                "embedding_model_name": config.embedding_model_name,
+                "gemini_model_name": config.gemini_model_name,
+                "connection_timeout": config.connection_timeout
+            }
+        }
+    except Exception as e:
+        return {"status": "error", "message": f"Failed to configure RAG Manager: {str(e)}"}
+
+@app.post("/collections")
+def create_collection(request: CollectionRequest):
+    """Create a new collection or recreate an existing one"""
+    if not rag_manager:
+        raise HTTPException(status_code=500, detail="RAG Manager not initialized")
+    
+    try:
+        rag_manager.setup_collection(collection_name=request.collection_name, recreate=request.recreate)
+        return {
+            "status": "success",
+            "message": f"Collection '{request.collection_name}' {'recreated' if request.recreate else 'created or verified'} successfully"
+        }
+    except Exception as e:
+        return {"status": "error", "message": f"Failed to create collection: {str(e)}"}
+
+@app.get("/collections")
+def list_collections():
+    """List all available collections"""
+    if not rag_manager:
+        raise HTTPException(status_code=500, detail="RAG Manager not initialized")
+    
+    try:
+        collections = rag_manager._with_retry(rag_manager.client.get_collections).collections
+        return {
+            "status": "success",
+            "collections": [{"name": collection.name, "vectors_count": collection.vectors_count} for collection in collections]
+        }
+    except Exception as e:
+        return {"status": "error", "message": f"Failed to list collections: {str(e)}"}
+
+@app.delete("/collections/{collection_name}")
+def delete_collection(collection_name: str):
+    """Delete a collection"""
+    if not rag_manager:
+        raise HTTPException(status_code=500, detail="RAG Manager not initialized")
+    
+    try:
+        rag_manager._with_retry(rag_manager.client.delete_collection, collection_name=collection_name)
+        return {
+            "status": "success",
+            "message": f"Collection '{collection_name}' deleted successfully"
+        }
+    except Exception as e:
+        return {"status": "error", "message": f"Failed to delete collection: {str(e)}"}
+
+@app.post("/upload")
+def upload_data(request: UploadDataRequest):
+    """Upload documents to a collection"""
+    if not rag_manager:
+        raise HTTPException(status_code=500, detail="RAG Manager not initialized")
+    
+    if not request.documents:
+        return {"status": "error", "message": "No documents provided"}
+    
+    try:
+        # Convert Pydantic models to dictionaries
+        data = [doc.dict() for doc in request.documents]
+        
+        result = rag_manager.upload_data(
+            data=data,
+            collection_name=request.collection_name,
+            use_chunking=request.use_chunking,
+            recreate_collection=request.recreate_collection
+        )
+        
+        return result
+    except Exception as e:
+        return {"status": "error", "message": f"Failed to upload data: {str(e)}"}
+
+@app.post("/search")
+def search(request: SearchRequest):
+    """Search for documents matching a query"""
+    if not rag_manager:
+        raise HTTPException(status_code=500, detail="RAG Manager not initialized")
+    
+    try:
+        results = rag_manager.search(
+            query_text=request.query,
+            collection_name=request.collection_name,
+            limit=request.limit,
+            rerank=request.rerank,
+            return_rag_response=request.return_rag_response
+        )
+        
+        if request.return_rag_response:
+            return {"status": "success", "response": results}
+        else:
+            return {"status": "success", "results": results}
+    except Exception as e:
+        return {"status": "error", "message": f"Search failed: {str(e)}"}
+
+# Endpoint to specifically get a roast for Ana
+@app.post("/roast-ana")
+def get_ana_roast(query: str = Body(..., embed=True, description="A query about Ana")):
+    """Get a roast response about Ana based on the provided query"""
+    if not rag_manager:
+        raise HTTPException(status_code=500, detail="RAG Manager not initialized")
+    
+    try:
+        # Always return a RAG response for this endpoint
+        response = rag_manager.search(
+            query_text=query,
+            limit=3,  # Get more context for a better roast
+            rerank=True,
+            return_rag_response=True
+        )
+        
+        return {"status": "success", "roast": response}
+    except Exception as e:
+        return {"status": "error", "message": f"Failed to generate roast: {str(e)}"}
+
+@app.get("/health")
+def health_check():
+    """Health check endpoint"""
+    if not rag_manager:
+        raise HTTPException(status_code=503, detail="RAG Manager not initialized")
+    
+    # Check connection to Qdrant
+    try:
+        collections = rag_manager._with_retry(rag_manager.client.get_collections, retry_attempts=1).collections
+        collection_count = len(collections)
+        
+        # Check if Gemini API is working
+        gemini_status = "available" if rag_manager.gemini_api_key else "unavailable"
+        
+        return {
+            "status": "healthy",
+            "qdrant_connection": "connected",
+            "collections_count": collection_count,
+            "gemini_api": gemini_status,
+            "embedding_model": rag_manager.embedding_model_name,
+            "vector_size": rag_manager.vector_size
+        }
+    except Exception as e:
+        return {
+            "status": "unhealthy",
+            "error": str(e),
+            "message": "Failed to connect to Qdrant server"
+        }
+
+@app.post("/analyze-text")
+def analyze_text(text: str = Body(..., embed=True, description="Text to analyze for chunking")):
+    """Analyze text and get chunking recommendations"""
+    if not rag_manager or not rag_manager.chunker:
+        raise HTTPException(status_code=503, detail="RAG Manager or chunker not initialized")
+    
+    try:
+        recommendations = rag_manager.chunker.analyze_document(text)
+        return {
+            "status": "success",
+            "recommendations": recommendations,
+            "text_length": len(text),
+            "sample_analyzed": len(text[:10000]) if len(text) > 10000 else len(text)
+        }
+    except Exception as e:
+        return {"status": "error", "message": f"Failed to analyze text: {str(e)}"}
+
+@app.post("/chunk-text")
+def chunk_text(
+    text: str = Body(..., embed=True, description="Text to chunk"),
+    metadata: Optional[Dict[str, Any]] = Body({}, embed=True, description="Metadata for the chunks")
+):
+    """Chunk text using the agentic chunker"""
+    if not rag_manager or not rag_manager.chunker:
+        raise HTTPException(status_code=503, detail="RAG Manager or chunker not initialized")
+    
+    try:
+        chunks = rag_manager.chunker.chunk_text(text, metadata)
+        
+        # Convert chunks to a more serializable format
+        serialized_chunks = []
+        for chunk in chunks:
+            serialized_chunks.append({
+                "text": chunk["text"],
+                "metadata": chunk["metadata"],
+                "length": len(chunk["text"])
+            })
+            
+        return {
+            "status": "success",
+            "chunks_count": len(chunks),
+            "chunks": serialized_chunks
+        }
+    except Exception as e:
+        return {"status": "error", "message": f"Failed to chunk text: {str(e)}"}
+
+class BulkSearchRequest(BaseModel):
+    queries: List[str]
+    collection_name: Optional[str] = None
+    limit: int = 5
+    rerank: bool = True
+    return_rag_response: bool = False
+
+@app.post("/bulk-search")
+def bulk_search(request: BulkSearchRequest):
+    """Search for multiple queries at once"""
+    if not rag_manager:
+        raise HTTPException(status_code=500, detail="RAG Manager not initialized")
+    
+    try:
+        results = []
+        
+        for query in request.queries:
+            query_result = rag_manager.search(
+                query_text=query,
+                collection_name=request.collection_name,
+                limit=request.limit,
+                rerank=request.rerank,
+                return_rag_response=request.return_rag_response
+            )
+            
+            results.append({
+                "query": query,
+                "result": query_result
+            })
+        
+        return {"status": "success", "results": results}
+    except Exception as e:
+        return {"status": "error", "message": f"Bulk search failed: {str(e)}"}
+
+class TestDocumentsRequest(BaseModel):
+    recreate_collection: bool = True
+    collection_name: Optional[str] = "test_collection"
+
+@app.post("/test-documents")
+def create_test_documents(request: TestDocumentsRequest):
+    """Create test documents for testing the API"""
+    if not rag_manager:
+        raise HTTPException(status_code=500, detail="RAG Manager not initialized")
+    
+    try:
+        # Sample test data for Ana
+        sample_data = [
+            {
+                "id": 1,
+                "text": """Ana, nickname Munche, is known for her playful personality and unique habits. She really enjoys drinking milk and sometimes behaves childishly. Her friends often joke that she acts like a monkey when she gets excited. Ana is quite short in height, which adds to her child-like appearance and also she is dumb.
+
+                Ana can come across as naive and simple-minded at times, with friends teasing her about having "zero cores in her brain" when she misunderstands obvious things. Despite these traits, Ana's friends appreciate her genuine and unfiltered nature, which makes her the perfect target for friendly roasting and banter.
+                
+                When chatting with Ana, it's fun to playfully tease her about her height, her milk obsession, or her monkey-like antics, but always in a light-hearted way that she can laugh along with.""",
+                "metadata": {"category": "Personal", "person": "Ana", "nickname": "Munche", "relationship": "friend"}
+            },
+            {
+                "id": 2,
+                "text": """Ana is always losing her belongings. Last week, she couldn't find her phone for three hours only to discover it was in her pocket the whole time. Her friends have started calling her "The Forgetful Monkey" because of her constant misplacing of items and her excitable nature.
+
+                Despite having a master's degree, Ana once asked if Alaska was a country. This led to a lot of playful teasing from her friends who joked that her diploma must have been given to her out of pity. Ana's milk obsession is so intense that she keeps emergency milk cartons in her bag.""",
+                "metadata": {"category": "Personal", "person": "Ana", "nickname": "Forgetful Monkey", "relationship": "friend"}
+            },
+            {
+                "id": 3,
+                "text": """Ana's short height is a running joke in her friend group. She often needs to stand on tiptoes or ask for help reaching things on high shelves. Her friends tease her by putting things just out of her reach and watching her jump for them like a little monkey.
+
+                Ana's childish behavior includes making monkey noises when she's excited and pouting when she doesn't get her way. She can often be found drinking milk directly from the carton, a habit that horrifies her more sophisticated friends.""",
+                "metadata": {"category": "Personal", "person": "Ana", "characteristics": "short, childish, milk-lover", "relationship": "friend"}
+            }
+        ]
+        
+        result = rag_manager.upload_data(
+            data=sample_data,
+            collection_name=request.collection_name,
+            use_chunking=True,
+            recreate_collection=request.recreate_collection
+        )
+        
+        return {
+            "status": "success", 
+            "message": f"Created {len(sample_data)} test documents with {result.get('points_uploaded', 0)} points",
+            "collection": request.collection_name
+        }
+    except Exception as e:
+        return {"status": "error", "message": f"Failed to create test documents: {str(e)}"}
+
+# Main function to run the API
+def main():
+    import uvicorn
+    uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=True)
 
 if __name__ == "__main__":
-    example_usage()
+    main()

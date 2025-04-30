@@ -79,7 +79,7 @@ const ContextProvider = (props) => {
         `http://127.0.0.1:8000/conversation/active/${activeConversationId}`
       );
       const result = await response.json();
-      if (result && result.sessionId !== conversation.sessionId){
+      if (result && result.sessionId !== conversation.sessionId) {
         setConversation(result);
       }
     };
@@ -100,7 +100,7 @@ const ContextProvider = (props) => {
     getSuggestions();
   }, []);
 
-  const onSent = async (prompt, file) => {
+  const onSent = async (prompt) => {
     const userPrompt = prompt || input;
 
     setAllowSending(false);
@@ -135,7 +135,7 @@ const ContextProvider = (props) => {
     const apiUrl = import.meta.env.VITE_API_URL;
     console.log(apiUrl);
     try {
-      const response = await fetch(`http://34.47.155.223:8000/rag/answer`, {
+      const response = await fetch(`${apiUrl}/rag/answer`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -171,7 +171,6 @@ const ContextProvider = (props) => {
     );
 
     await sleep(1000);
-    
 
     let currentIndex = 0;
 
@@ -219,6 +218,7 @@ const ContextProvider = (props) => {
         }
       );
       const result = await response.json();
+      console.log("savedddddd", result);
       setUpdateSidebar(!updateSidebar);
 
       if (conversation.title === "New Chat") {
@@ -227,7 +227,7 @@ const ContextProvider = (props) => {
           title: userPrompt.slice(0, 20),
         }));
       }
-    };
+    }
 
     setLoading(false);
   };
@@ -238,18 +238,18 @@ const ContextProvider = (props) => {
     setAllowSending(true);
     setStopIcon(false);
     setInput("");
-    
-    setConversation(prev => {
+
+    setConversation((prev) => {
       const messages = [...prev.messages];
       if (messages.length && messages[messages.length - 1].type === "bot") {
         messages[messages.length - 1] = {
           type: "bot",
-          text: messages[messages.length - 1].text
+          text: messages[messages.length - 1].text,
         };
       }
       return {
         ...prev,
-        messages
+        messages,
       };
     });
   };
