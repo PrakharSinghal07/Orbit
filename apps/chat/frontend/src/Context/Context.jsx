@@ -125,7 +125,7 @@ const ContextProvider = (props) => {
 
     const userPayload = {
       query: userPrompt,
-      collection_name: "documents",
+      collection_name: "SLURM",
       k: 3,
       expand_with_model_knowledge: true,
       gemini_api_key: "AIzaSyCHrXPFGHX565uVzOVECqjsN6m77_VN9n0",
