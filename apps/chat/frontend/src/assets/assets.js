@@ -20,6 +20,7 @@ import menu_bar from './menu-bar.png'
 import file from './file.png'
 import cross from './close.png'
 import deleteBtn from './delete.png'
+import mic_active_icon from './microphone.png'
 export const assets = {
     history_icon,
     menu_icon,
@@ -42,5 +43,6 @@ export const assets = {
     menu_bar,
     file,
     cross,
-    deleteBtn
+    deleteBtn,
+    mic_active_icon
 }
