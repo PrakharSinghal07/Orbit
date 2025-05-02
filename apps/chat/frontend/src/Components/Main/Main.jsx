@@ -5,18 +5,58 @@ import Card from "./Card";
 import { Context } from "../../Context/Context";
 
 const Main = () => {
-  const theme = localStorage.getItem('theme')
+  const theme = localStorage.getItem('theme');
   const [isDarkMode, setIsDarkMode] = useState(true);
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef(null);
+
   useEffect(() => {
-    if(theme === 'dark'){
+    if (theme === 'dark') {
       document.documentElement.classList.add("dark-mode");
-      setIsDarkMode(true)
-    }
-    else{
+      setIsDarkMode(true);
+    } else {
       document.documentElement.classList.remove("dark-mode");
-      setIsDarkMode(false)
+      setIsDarkMode(false);
     }
-  }, [])
+
+    // Initialize Speech Recognition
+    if ("webkitSpeechRecognition" in window) {
+      const SpeechRecognition = window.webkitSpeechRecognition;
+      recognitionRef.current = new SpeechRecognition();
+      recognitionRef.current.continuous = false;
+      recognitionRef.current.interimResults = false;
+      recognitionRef.current.lang = "en-US";
+
+      recognitionRef.current.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        setInput((prevInput) => prevInput + transcript);
+        setIsListening(false);
+      };
+
+      recognitionRef.current.onerror = () => {
+        setIsListening(false);
+      };
+
+      recognitionRef.current.onend = () => {
+        setIsListening(false);
+      };
+    }
+  }, []);
+
+  const startListening = () => {
+    if (recognitionRef.current) {
+      setIsListening(true);
+      recognitionRef.current.start();
+    }
+  };
+
+  const stopListening = () => {
+    if (recognitionRef.current) {
+      setIsListening(false);
+      recognitionRef.current.stop();
+    }
+  };
+
   const [file, setFile] = useState(null);
   const {
     onSent,
@@ -39,15 +79,16 @@ const Main = () => {
     setIsDarkMode((prevMode) => {
       const newMode = !prevMode;
       if (newMode) {
-        localStorage.setItem('theme', 'dark')
+        localStorage.setItem('theme', 'dark');
         document.documentElement.classList.add("dark-mode");
       } else {
-        localStorage.setItem('theme', 'light')
+        localStorage.setItem('theme', 'light');
         document.documentElement.classList.remove("dark-mode");
       }
       return newMode;
     });
   };
+
   return (
     <div className={`main`}>
       <div className="nav">
@@ -143,10 +184,14 @@ const Main = () => {
               style={{ display: "none" }}
               id="fileUpload"
             />
-              <img src={assets.mic_icon} className="utility_icon" alt="" />
+              <img
+                src={isListening ? assets.mic_active_icon : assets.mic_icon}
+                className="utility_icon"
+                alt="Mic"
+                onClick={isListening ? stopListening : startListening}
+              />
             <label className="file_label" htmlFor="fileUpload">
               <img className="file_icon utility_icon" src={assets.add_file} alt="" />
-
             </label>
             <img
               onClick={() => {
