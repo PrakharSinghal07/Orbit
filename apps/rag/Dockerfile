@@ -1,6 +1,13 @@
-FROM python:3.10-slim
 
-WORKDIR /app
+FROM python:3.12-slim AS builder
+
+WORKDIR /build
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_DEFAULT_TIMEOUT=100
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
@@ -8,14 +15,41 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
 
-RUN python -c "from huggingface_hub import snapshot_download; snapshot_download('intfloat/multilingual-e5-large-instruct', local_dir='/app/model')"
-RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('/app/model')"
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
 
-COPY . .
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
-ENV PYTHONPATH=/app
+RUN find /opt/venv -name "*.pyc" -delete && \
+    find /opt/venv -name "__pycache__" -type d -exec rm -rf {} + && \
+    find /opt/venv -name "*.pyo" -delete
+
+FROM python:3.12-slim AS production
+
+WORKDIR /rag
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/rag \
+    PATH="/opt/venv/bin:$PATH"
+
+
+COPY --from=builder /opt/venv /opt/venv
+
+RUN groupadd -r appgroup && useradd -r -g appgroup -d /rag appuser
+
+COPY --chown=appuser:appgroup . .
+
+RUN rm -rf tests/ *.md .git* .pytest_cache/ __pycache__/ \
+    && find . -name "*.pyc" -delete \
+    && find . -name "__pycache__" -type d -exec rm -rf {} +
+
+USER appuser
+
 
 EXPOSE 8000
-CMD ["python", "api/main.py"]
+
+ENTRYPOINT ["python"]
+CMD ["api/main.py"]

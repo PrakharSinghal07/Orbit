@@ -1,184 +1,250 @@
-import re
 import json
-import textwrap
-import os
-import sys
-import google.generativeai as genai
-from typing import List, Dict, Any, Optional
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
-from models.embeddings import EmbeddingModel  
-from models.qdrant_client import QdrantClientWrapper
+import re
+from typing import List, Dict, Any, Optional, Tuple
+from dataclasses import dataclass
+from rag.models.gemini_client import GeminiClient
+from rag.models.qdrant_client import SimpleQdrantClient
 
-parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, parent_dir)
-from config import settings
+@dataclass
+class SearchResult:
+    score: float
+    payload: Dict[str, Any]
+    text: str
 
-class SearchService:
-    """Service for searching data in Qdrant."""
-    
-    def __init__(
-        self,
-        qdrant_client: QdrantClientWrapper = None,
-        embedding_model: EmbeddingModel = None
-    ):
-        """
-        Initialize the search service.
+class MetadataSearchService:
+    def __init__(self):
+        self.gemini_client = GeminiClient()
+        self.qdrant_client = SimpleQdrantClient()
         
-        Args:
-            qdrant_client: Qdrant client wrapper
-            embedding_model: Embedding model
-        """
-        self.qdrant_client = qdrant_client or QdrantClientWrapper()
-        self.embedding_model = embedding_model or EmbeddingModel()
+        self.metadata_schema = {
+            "category": ["technical", "business", "general", "academic"],
+            "complexity": ["basic", "moderate", "advanced", "expert"],
+            "document_type": ["application/pdf", "text/plain", "application/json", "text/html"],
+            "language": ["en", "es", "fr", "de", "zh", "ja"],
+            "sentiment": ["positive", "negative", "neutral"],
+            "topic": "string",  
+            "entities": "list",  
+            "keywords": "list" 
+        }
+    
+    def _create_metadata_extraction_prompt(self, query: str) -> str:
+        return f"""
+Analyze the following user query and extract relevant metadata that could be used for filtering search results.
+
+User Query: "{query}"
+
+Extract metadata based on this schema:
+- category: {self.metadata_schema['category']} (choose most relevant)
+- complexity: {self.metadata_schema['complexity']} (infer from query sophistication)
+- document_type: {self.metadata_schema['document_type']} (if query mentions specific file types)
+- language: {self.metadata_schema['language']} (language of the query)
+- sentiment: {self.metadata_schema['sentiment']} (overall tone of the query)
+- topic: (main topic/subject area as a string)
+- entities: (list of specific names, tools, technologies, people mentioned)
+- keywords: (list of 3-5 key terms for search)
+
+Also provide an "enhanced_query" - a semantically improved version of the original query, stripped of metadata phrases and optimized for embedding-based search.
+
+Return your response as valid JSON in this format:
+{{
+    "metadata": {{
+        "category": "value_or_null",
+        "complexity": "value_or_null",
+        "document_type": "value_or_null",
+        "language": "value_or_null",
+        "sentiment": "value_or_null",
+        "topic": "value_or_null",
+        "entities": ["entity1", "entity2"] or null,
+        "keywords": ["keyword1", "keyword2", "keyword3"] or null
+    }},
+    "enhanced_query": "semantically enhanced version of the query"
+}}
+
+Only include metadata fields that are clearly identifiable from the query. Use null for uncertain fields.
+"""
+    
+    def _extract_metadata_and_enhance_query(self, query: str) -> Tuple[Dict[str, Any], str]:
+        try:
+            prompt = self._create_metadata_extraction_prompt(query)
+            response = self.gemini_client.generate_text(prompt, temperature=0.3)
+            
+            json_match = re.search(r'\{.*\}', response, re.DOTALL)
+            if json_match:
+                result = json.loads(json_match.group())
+                metadata = result.get("metadata", {})
+                enhanced_query = result.get("enhanced_query", query)
+                
+                cleaned_metadata = self._validate_and_clean_metadata(metadata)
+                
+                return cleaned_metadata, enhanced_query
+            else:
+                print("Warning: Could not extract JSON from LLM response")
+                return {}, query
+                
+        except Exception as e:
+            print(f"Error in metadata extraction: {e}")
+            return {}, query
+    
+    def _validate_and_clean_metadata(self, metadata: Dict[str, Any]) -> Dict[str, Any]:
+        cleaned = {}
+        
+        for key, value in metadata.items():
+            if value is None or value == "":
+                continue
+                
+            if key in self.metadata_schema:
+                schema_type = self.metadata_schema[key]
+                
+                if isinstance(schema_type, list):
+                    if value in schema_type:
+                        cleaned[key] = value
+                    else:
+                        print(f"Warning: Invalid value '{value}' for {key}, skipping")
+                elif schema_type == "string":
+                    if isinstance(value, str) and len(value.strip()) > 0:
+                        cleaned[key] = value.strip()
+                elif schema_type == "list":
+                    if isinstance(value, list) and len(value) > 0:
+                        clean_list = [item.strip() for item in value if isinstance(item, str) and len(item.strip()) > 0]
+                        if clean_list:
+                            cleaned[key] = clean_list
+            else:
+                print(f"Warning: Unknown metadata key '{key}', skipping")
+        
+        return cleaned
     
     def search(
         self, 
-        query_text: str,
-        collection_name: str = settings.DEFAULT_COLLECTION_NAME,
-        limit: int = 5,
-        gemini_api_key: Optional[str] = None,
-        rerank: bool = True,
-        filter_conditions: Optional[Dict[str, Any]] = None
-    ) -> List[Any]:
-        """
-        Search for documents in Qdrant and optionally rerank with Gemini.
+        query: str, 
+        collection_name: str,
+        limit: int = 10,
+        additional_filters: Optional[Dict[str, Any]] = None,
+        fallback_strategy: str = "progressive"
+    ) -> List[SearchResult]:
+        print(f"Processing query: '{query}'")
         
-        Args:
-            query_text: Query text
-            collection_name: Name of the collection to search
-            limit: Maximum number of results to return
-            gemini_api_key: API key for Gemini
-            rerank: Whether to use Gemini to rerank results
-            filter_conditions: Optional filter conditions for search
-            
-        Returns:
-            List of search results
-        """
+        metadata, enhanced_query = self._extract_metadata_and_enhance_query(query)        
         try:
-            print(f"\nPerforming search in '{collection_name}' for: '{query_text}'")
-            
-            query_vector = self.embedding_model.encode(query_text).tolist()
-            
-            search_limit = limit * 3 if rerank else limit
-            
+            query_vector = self.gemini_client.generate_embedding(enhanced_query)
+        except Exception as e:
+            print(f"Error generating embedding: {e}")
+            return []
+        
+        results = self._search_with_fallback(
+            collection_name, query_vector, metadata, additional_filters, 
+            limit, fallback_strategy
+        )
+        
+        return results
+    
+    def _search_with_fallback(
+        self,
+        collection_name: str,
+        query_vector: List[float],
+        metadata: Dict[str, Any],
+        additional_filters: Optional[Dict[str, Any]],
+        limit: int,
+        strategy: str
+    ) -> List[SearchResult]:
+        all_filters = {}
+        if metadata:
+            all_filters.update(metadata)
+        if additional_filters:
+            all_filters.update(additional_filters)
+        
+        if strategy == "progressive":
+            return self._progressive_search(collection_name, query_vector, all_filters, limit)
+        elif strategy == "strict":
+            return self._strict_search(collection_name, query_vector, all_filters, limit)
+        else:  
+            return self._open_search(collection_name, query_vector, limit)
+    
+    def _progressive_search(
+        self, 
+        collection_name: str, 
+        query_vector: List[float], 
+        filters: Dict[str, Any], 
+        limit: int
+    ) -> List[SearchResult]:
+        if not filters:
+            return self._execute_search(collection_name, query_vector, None, limit)
+        
+        print(f"Trying search with all filters: {filters}")
+        results = self._execute_search(collection_name, query_vector, filters, limit)
+        
+        if results:
+            return results
+        
+        fallback_order = ["document_type", "sentiment", "complexity", "category"]
+        current_filters = filters.copy()
+        
+        for filter_to_remove in fallback_order:
+            if filter_to_remove in current_filters:
+                current_filters.pop(filter_to_remove)
+                
+                results = self._execute_search(collection_name, query_vector, current_filters, limit)
+                if results:
+                    return results
+        
+        return self._execute_search(collection_name, query_vector, None, limit)
+    
+    def _strict_search(
+        self, 
+        collection_name: str, 
+        query_vector: List[float], 
+        filters: Dict[str, Any], 
+        limit: int
+    ) -> List[SearchResult]:
+        if not filters:
+            return []
+        
+        return self._execute_search(collection_name, query_vector, filters, limit)
+    
+    def _open_search(
+        self, 
+        collection_name: str, 
+        query_vector: List[float], 
+        limit: int
+    ) -> List[SearchResult]:
+        return self._execute_search(collection_name, query_vector, None, limit)
+    
+    def _execute_search(
+        self, 
+        collection_name: str, 
+        query_vector: List[float], 
+        filters: Optional[Dict[str, Any]], 
+        limit: int
+    ) -> List[SearchResult]:
+        try:
             search_results = self.qdrant_client.search(
-                collection_name,
-                query_vector,
-                limit=search_limit,
-                filter_conditions=filter_conditions
+                collection_name=collection_name,
+                query_vector=query_vector,
+                limit=limit,
+                filter_conditions=filters
             )
             
-            if not search_results:
-                print("No results found.")
-                return []
+            formatted_results = []
+            for result in search_results:
+                formatted_results.append(SearchResult(
+                    score=result.score,
+                    payload=result.payload,
+                    text=result.payload.get('text', '')
+                ))
             
-            if rerank:
-                search_results = self._rerank_with_gemini(
-                    search_results,
-                    query_text,
-                    limit,
-                    gemini_api_key
-                )
-            else:
-                search_results = search_results[:limit]
-                
-            print(f"Search results:")
-            for idx, result in enumerate(search_results[:limit]):
-                print(f"Result #{idx+1}")
-                print(f"ID: {result.id}, Score: {result.score:.4f}")
-                print(f"Text: {textwrap.shorten(result.payload.get('text', ''), width=200, placeholder='...')}")
-                metadata = {k: v for k, v in result.payload.items() if k != 'text'}
-                if metadata:
-                    print(f"Metadata: {', '.join([f'{k}: {v}' for k, v in metadata.items()])}")
-                print()
-                
-            return search_results
-                
+            return formatted_results
+            
         except Exception as e:
-            print(f"Search error: {str(e)}")
+            print(f"Error in vector search: {e}")
             return []
     
-    def _rerank_with_gemini(
-        self, 
-        search_results: List[Any], 
-        query_text: str, 
-        limit: int,
-        gemini_api_key: Optional[str] = None
-    ) -> List[Any]:
-        """
-        Rerank search results using Gemini.
+    def explain_search(self, query: str) -> Dict[str, Any]:
+        metadata, enhanced_query = self._extract_metadata_and_enhance_query(query)
         
-        Args:
-            search_results: List of search results
-            query_text: Original query text
-            limit: Maximum number of results to return
-            gemini_api_key: API key for Gemini
-            
-        Returns:
-            Reranked search results
-        """
-        if gemini_api_key:
-            genai.configure(api_key=gemini_api_key)
-        else:
-            gemini_api_key = os.environ.get("GEMINI_API_KEY", settings.GEMINI_API_KEY)
-            if gemini_api_key:
-                genai.configure(api_key=gemini_api_key)
-            else:
-                print("Warning: Gemini API key not provided. Skipping reranking.")
-                return search_results[:limit]
-        
-        model = genai.GenerativeModel('gemini-1.5-pro')
-        
-        context_list = []
-        for idx, result in enumerate(search_results):
-            text = result.payload.get('text', '')
-            score = result.score
-            context_list.append({
-                "id": result.id,
-                "text": text,
-                "original_score": score,
-                "original_rank": idx
-            })
-        
-        rerank_prompt = f"""
-        I need help reranking search results for the query: "{query_text}"
-        
-        Here are the search results, already sorted by vector similarity:
-        
-        {json.dumps(context_list, indent=2)}
-        
-        Please rerank these results based on relevance to the query. Consider:
-        1. How well the content addresses the query
-        2. The depth and quality of information
-        3. The specificity to the query topic
-        
-        Return a JSON array with the IDs of the top {limit} results in order of relevance.
-        Format: [id1, id2, id3, ...]
-        """
-        
-        try:
-            rerank_response = model.generate_content(rerank_prompt)
-            response_text = rerank_response.text
-            
-            id_match = re.search(r'(\[.*\])', response_text.replace('\n', ' '), re.DOTALL)
-            if id_match:
-                reranked_ids = json.loads(id_match.group(1))
-                
-                id_to_result = {str(result.id): result for result in search_results}
-                reranked_results = []
-                
-                for result_id in reranked_ids:
-                    result_id_str = str(result_id)
-                    if result_id_str in id_to_result:
-                        reranked_results.append(id_to_result[result_id_str])
-                        if len(reranked_results) >= limit:
-                            break
-                
-                if reranked_results and len(reranked_results) >= limit / 2:
-                    print("Results reranked by Gemini LLM")
-                    return reranked_results
-            
-            return search_results[:limit]
-        except Exception as e:
-            print(f"Error during reranking: {e}")
-            return search_results[:limit]
+        return {
+            "original_query": query,
+            "extracted_metadata": metadata,
+            "enhanced_query": enhanced_query,
+            "would_filter_by": list(metadata.keys()) if metadata else "No filters",
+            "search_strategy": "Semantic similarity search with metadata filtering"
+        }
+

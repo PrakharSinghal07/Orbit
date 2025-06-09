@@ -1,19 +1,16 @@
-import os
+import uvicorn
 import sys
-import uvicorn  
-
-current_dir = os.path.dirname(os.path.abspath(__file__))
-parent_dir = os.path.dirname(current_dir)
-sys.path.insert(0, parent_dir)
-
-from fastapi import FastAPI, HTTPException
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routers import data_router, search_router, rag_router
-from config import settings
+from rag.api.routers.rag_router import rag_router
+
+
 
 app = FastAPI(
     title="RAG API",
-    description="API for Retrieval-Augmented Generation with intelligent chunking",
+    description="API for Retrieval-Augmented Generation Application",
     version="0.1.0",
 )
 
@@ -25,30 +22,22 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(data_router.router)
-app.include_router(search_router.router)
-app.include_router(rag_router.router)
+app.include_router(rag_router)
 
 @app.get("/")
 async def root():
-    """Root endpoint with API information."""
     return {
         "name": "RAG API",
         "version": "0.1.0",
-        "description": "API for Retrieval-Augmented Generation with intelligent chunking",
+        "description": "API for Retrieval-Augmented Generation Application",
         "endpoints": {
-            "data": "/data/push",
-            "search": "/search",
-            "rag": "/rag/answer"
+            "rag": "/rag/query"
         }
     }
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint."""
     return {"status": "healthy"}
 
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8000))
-    uvicorn.run("main:app", host="0.0.0.0", port=port)
-    
+if __name__ == "__main__":    
+    uvicorn.run("main:app", host="0.0.0.0", port=8000)

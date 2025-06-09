@@ -5,9 +5,11 @@ export const Context = createContext();
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+const backendUrl = import.meta.env.VITE_BACKEND_URL;
+
 const generateNewChat = async () => {
   try {
-    const response = await fetch("http://localhost:8000/conversation/create", {
+    const response = await fetch(`${backendUrl}/conversation/create`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -30,7 +32,7 @@ const generateNewChat = async () => {
   }
 };
 
-const ContextProvider = (props) => {
+export const ContextProvider = (props) => {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [showResult, setShowResult] = useState(false);
@@ -40,32 +42,37 @@ const ContextProvider = (props) => {
 
   const stopReplyRef = useRef(false);
 
-  const [conversation, setConversation] = useState({});
+  const [conversation, setConversation] = useState({ messages: [] });
   const [activeConversationId, setActiveConversationId] = useState(null);
   const [updateSidebar, setUpdateSidebar] = useState(true);
   const [updateSidebar2, setUpdateSidebar2] = useState(true);
+
   const createNewChat = async () => {
     stopReply();
-    if (conversation.title !== "New Chat") {
+    if (conversation && conversation.title !== "New Chat") {
       const newChat = await generateNewChat();
-      setConversation(newChat);
-      setActiveConversationId(newChat.sessionId);
+      if (newChat) {
+        setConversation(newChat);
+        setActiveConversationId(newChat.sessionId);
+      }
     }
   };
 
   useEffect(() => {
     const getConvo = async () => {
-      const response = await fetch(
-        `http://127.0.0.1:8000/conversation/initial`,
-        {
+      try {
+        const response = await fetch(`${backendUrl}/conversation/initial`, {
           method: "GET",
+        });
+        if (response.ok) {
+          const result = await response.json();
+          if (result) {
+            setConversation(result);
+            setActiveConversationId(result.sessionId);
+          }
         }
-      );
-      const result = await response.json();
-      {
-        setConversation(result);
-
-        setActiveConversationId(result.sessionId);
+      } catch (error) {
+        console.error("Error fetching initial conversation:", error);
       }
     };
     getConvo();
@@ -74,13 +81,23 @@ const ContextProvider = (props) => {
   useEffect(() => {
     if (!activeConversationId) return;
     const getCurrentConversation = async () => {
-      stopReplyRef.current = true;
-      const response = await fetch(
-        `http://127.0.0.1:8000/conversation/active/${activeConversationId}`
-      );
-      const result = await response.json();
-      if (result && result.sessionId !== conversation.sessionId) {
-        setConversation(result);
+      try {
+        stopReplyRef.current = true;
+        const response = await fetch(
+          `${backendUrl}/conversation/active/${activeConversationId}`
+        );
+        if (response.ok) {
+          const result = await response.json();
+          if (
+            result &&
+            conversation &&
+            result.sessionId !== conversation.sessionId
+          ) {
+            setConversation(result);
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching current conversation:", error);
       }
     };
     getCurrentConversation();
@@ -88,9 +105,11 @@ const ContextProvider = (props) => {
 
   const getSuggestions = async () => {
     try {
-      const response = await fetch("http://127.0.0.1:8000/suggestions/");
-      const data = await response.json();
-      setSuggestions(data.suggestions);
+      const response = await fetch(`${backendUrl}/suggestions/`);
+      if (response.ok) {
+        const data = await response.json();
+        setSuggestions(data.suggestions || []);
+      }
     } catch (error) {
       console.error("Error fetching suggestions:", error);
     }
@@ -114,20 +133,13 @@ const ContextProvider = (props) => {
 
     setConversation((prev) => ({
       ...prev,
-      messages: [...(prev.messages || []), userMessage, botMessage],
+      messages: [...(prev?.messages || []), userMessage, botMessage],
     }));
 
     setInput("");
 
-    // const formData = new FormData();
-    // formData.append("message", userPrompt);
-    // if (file) formData.append("file", file);
-
     const userPayload = {
       query: userPrompt,
-      collection_name: "SLURM",
-      k: 3,
-      expand_with_model_knowledge: true,
       gemini_api_key: "AIzaSyCHrXPFGHX565uVzOVECqjsN6m77_VN9n0",
     };
 
@@ -135,7 +147,7 @@ const ContextProvider = (props) => {
     const apiUrl = import.meta.env.VITE_API_URL;
     console.log(apiUrl);
     try {
-      const response = await fetch(`${apiUrl}/rag/answer`, {
+      const response = await fetch(`${apiUrl}/rag/query`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -176,7 +188,7 @@ const ContextProvider = (props) => {
 
     const typeBotResponse = () => {
       setConversation((prev) => {
-        const updatedMessages = [...prev.messages];
+        const updatedMessages = [...(prev?.messages || [])];
         const currentText = formattedResponse.slice(0, currentIndex);
         updatedMessages[updatedMessages.length - 1] = {
           type: "bot",
@@ -193,7 +205,9 @@ const ContextProvider = (props) => {
       if (currentIndex <= formattedResponse.length && !stopReplyRef.current) {
         setTimeout(typeBotResponse, 10);
       } else {
-        saveToBackend();
+        if (activeConversationId) {
+          saveToBackend();
+        }
         setLoading(false);
         setStopIcon(false);
         setAllowSending(true);
@@ -203,29 +217,35 @@ const ContextProvider = (props) => {
     typeBotResponse();
 
     async function saveToBackend() {
-      const response = await fetch(
-        `http://127.0.0.1:8000/conversation/${activeConversationId}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-type": "application/json",
-          },
-          body: JSON.stringify({
-            userMsg: userMessage,
-            botMsg: { type: "bot", text: formattedResponse },
-            prompt: userPrompt,
-          }),
-        }
-      );
-      const result = await response.json();
-      console.log("savedddddd", result);
-      setUpdateSidebar(!updateSidebar);
+      try {
+        const response = await fetch(
+          `${backendUrl}/conversation/${activeConversationId}`,
+          {
+            method: "POST",
+            headers: {
+              "Content-type": "application/json",
+            },
+            body: JSON.stringify({
+              userMsg: userMessage,
+              botMsg: { type: "bot", text: formattedResponse },
+              prompt: userPrompt,
+            }),
+          }
+        );
+        if (response.ok) {
+          const result = await response.json();
+          console.log("savedddddd", result);
+          setUpdateSidebar(!updateSidebar);
 
-      if (conversation.title === "New Chat") {
-        setConversation((prev) => ({
-          ...prev,
-          title: userPrompt.slice(0, 20),
-        }));
+          if (conversation && conversation.title === "New Chat") {
+            setConversation((prev) => ({
+              ...prev,
+              title: userPrompt.slice(0, 20),
+            }));
+          }
+        }
+      } catch (error) {
+        console.error("Error saving to backend:", error);
       }
     }
 
@@ -239,7 +259,7 @@ const ContextProvider = (props) => {
     setStopIcon(false);
 
     setConversation((prev) => {
-      const messages = [...prev.messages];
+      const messages = [...(prev?.messages || [])];
       if (messages.length && messages[messages.length - 1].type === "bot") {
         messages[messages.length - 1] = {
           type: "bot",

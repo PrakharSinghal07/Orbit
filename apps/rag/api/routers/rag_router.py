@@ -1,74 +1,23 @@
-from fastapi import APIRouter, Depends, HTTPException
-from typing import List, Dict, Any, Optional
-from pydantic import BaseModel, Field
-import sys
-import os
+from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel
+from typing import Optional
+from rag.services.rag_service import RAGService, RAGResponse  
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
-from services.rag_service import RAGService
-from config import settings
+rag_router = APIRouter()
 
-router = APIRouter(
-    prefix="/rag",
-    tags=["rag"],
-    responses={404: {"description": "Not found"}},
-)
+rag_service = RAGService(collection_name="documents")
 
-class Document(BaseModel):
-    id: Any
-    text: str
-    score: float
-    metadata: Dict[str, Any] = Field(default_factory=dict)
-
-class RAGRequest(BaseModel):
+class QueryRequest(BaseModel):
     query: str
-    collection_name: Optional[str] = settings.DEFAULT_COLLECTION_NAME
-    gemini_api_key: Optional[str] = None
-    k: Optional[int] = 3
-    expand_with_model_knowledge: Optional[bool] = True
-    filter_conditions: Optional[Dict[str, Any]] = None
+    limit: Optional[int] = 5
 
-class RAGResponse(BaseModel):
-    question: str
-    answer: str
-    retrieved_documents: List[Document]
-    used_model_knowledge: bool
-    error: Optional[str] = None
-
-@router.post("/answer", response_model=RAGResponse)
-async def retrieve_and_answer(
-    request: RAGRequest,
-    rag_service: RAGService = Depends(lambda: RAGService())
-):
-    """
-    Perform retrieval-augmented generation to answer a question.
-    """
+@rag_router.post("/rag/query", response_model=RAGResponse)
+async def query_rag_service(request: QueryRequest):
     try:
-        result = rag_service.retrieve_and_answer(
-            query_text=request.query,
-            collection_name=request.collection_name,
-            gemini_api_key=request.gemini_api_key,
-            k=request.k,
-            expand_with_model_knowledge=request.expand_with_model_knowledge,
-            filter_conditions=request.filter_conditions
+        result = rag_service.query(
+            user_query=request.query,
+            search_limit=request.limit
         )
-        
-        documents = [
-            Document(
-                id=doc["id"],
-                text=doc["text"],
-                score=doc["score"],
-                metadata=doc["metadata"]
-            )
-            for doc in result.get("retrieved_documents", [])
-        ]
-        
-        return {
-            "question": result["question"],
-            "answer": result["answer"],
-            "retrieved_documents": documents,
-            "used_model_knowledge": result["used_model_knowledge"],
-            "error": result.get("error")
-        }
+        return result
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Error during RAG query processing: {str(e)}")

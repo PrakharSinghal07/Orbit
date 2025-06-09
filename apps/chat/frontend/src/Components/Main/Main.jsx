@@ -5,13 +5,13 @@ import Card from "./Card";
 import { Context } from "../../Context/Context";
 
 const Main = () => {
-  const theme = localStorage.getItem('theme');
+  const theme = localStorage.getItem("theme");
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef(null);
 
   useEffect(() => {
-    if (theme === 'dark') {
+    if (theme === "dark") {
       document.documentElement.classList.add("dark-mode");
       setIsDarkMode(true);
     } else {
@@ -79,14 +79,43 @@ const Main = () => {
     setIsDarkMode((prevMode) => {
       const newMode = !prevMode;
       if (newMode) {
-        localStorage.setItem('theme', 'dark');
+        localStorage.setItem("theme", "dark");
         document.documentElement.classList.add("dark-mode");
       } else {
-        localStorage.setItem('theme', 'light');
+        localStorage.setItem("theme", "light");
         document.documentElement.classList.remove("dark-mode");
       }
       return newMode;
     });
+  };
+
+  const emojis = ["❤️", "👍", "😂", "👎"]; // Added 👎
+
+  const [messageReactions, setMessageReactions] = useState({});
+  const [openEmojiPicker, setOpenEmojiPicker] = useState(null);
+
+  const handleReaction = (index, emojiIdx) => {
+    setMessageReactions((prev) => ({
+      ...prev,
+      [index]: emojiIdx,
+    }));
+    setOpenEmojiPicker(null);
+  };
+
+  const getReactionMessage = (emojiIdx) => {
+    switch (emojis[emojiIdx]) {
+      case "❤️":
+        return "Thanks, love it!";
+      case "👍":
+        return "Thank you!";
+      case "😂":
+        return "Thanks, humm!";
+      
+      case "👎":
+        return "How can I help you, give some details so I can help you better way";
+      default:
+        return "";
+    }
   };
 
   return (
@@ -107,8 +136,7 @@ const Main = () => {
         </div>{" "}
       </div>
       <div className="main_container">
-        {!conversation.messages ||
-        conversation.messages.length === 0 ? (
+        {!conversation.messages || conversation.messages.length === 0 ? (
           <>
             <div className="greet">
               <p>
@@ -117,9 +145,9 @@ const Main = () => {
               <p className="greetMsg">How can I help you today?</p>
             </div>
             <div className="cards">
-              {cardText.map((text, i) => (
+              {/* {cardText.map((text, i) => (
                 <Card key={i} cardText={text} index={i} />
-              ))}
+              ))} */}
             </div>
           </>
         ) : (
@@ -139,6 +167,69 @@ const Main = () => {
                         <p
                           dangerouslySetInnerHTML={{ __html: message.text }}
                         ></p>
+                        {/* Reaction button and emoji picker */}
+                        <div
+                          style={{
+                            marginTop: "8px",
+                            position: "relative",
+                            display: "inline-block",
+                          }}
+                        >
+                          <button
+                            style={{
+                              fontSize: "1.2rem",
+                              marginRight: "6px",
+                              background: "none",
+                              border: "none",
+                              cursor: "pointer",
+                            }}
+                            onClick={() =>
+                              setOpenEmojiPicker(
+                                openEmojiPicker === index ? null : index
+                              )
+                            }
+                          >
+                            {messageReactions[index] !== undefined
+                              ? emojis[messageReactions[index]]
+                              : "😊"}
+                          </button>
+                          {openEmojiPicker === index && (
+                            <div
+                              style={{
+                                position: "absolute",
+                                background: "#fff",
+                                border: "1px solid #ccc",
+                                borderRadius: "8px",
+                                padding: "6px 8px",
+                                zIndex: 10,
+                                display: "flex",
+                                gap: "6px",
+                                boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+                              }}
+                            >
+                              {emojis.map((emoji, emojiIdx) => (
+                                <button
+                                  key={emoji}
+                                  style={{
+                                    fontSize: "1.2rem",
+                                    background: "none",
+                                    border: "none",
+                                    cursor: "pointer",
+                                  }}
+                                  onClick={() => handleReaction(index, emojiIdx)}
+                                >
+                                  {emoji}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        {/* Show reaction message */}
+                        {messageReactions[index] !== undefined && (
+                          <div style={{ marginTop: "4px", color: "#888" }}>
+                            {getReactionMessage(messageReactions[index])}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -152,61 +243,71 @@ const Main = () => {
           ))
         )}
       </div>
-      <div className={`main_bottom ${file && 'main_bottom_with_file'}`}>
+      <div className={`main_bottom ${file && "main_bottom_with_file"}`}>
         <div className="search_box">
-          {file &&<div className="file_container">
-            {file && <img className="new_file" src={assets.file} alt="" />}
-            {file && <p className="file_name">{file.name}</p>}
-            <img src={assets.cross}  onClick={() => {
-              setFile(null);
-            }}/>
-          </div>}
+          {file && (
+            <div className="file_container">
+              {file && <img className="new_file" src={assets.file} alt="" />}
+              {file && <p className="file_name">{file.name}</p>}
+              <img
+                src={assets.cross}
+                onClick={() => {
+                  setFile(null);
+                }}
+              />
+            </div>
+          )}
           <div className="tempo">
-          <input
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && input.trim() && allowSending) {
-                onSent(input, file);
-                setFile(null)
-                scrollToBottom();
-              }
-            }}
-            value={input}
-            type="text"
-            placeholder="Ask anything"
-          />
-          <div>
             <input
-              type="file"
-              onChange={(e) => {
-                setFile(e.target.files[0]);
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && input.trim() && allowSending) {
+                  onSent(input, file);
+                  setFile(null);
+                  scrollToBottom();
+                }
               }}
-              style={{ display: "none" }}
-              id="fileUpload"
+              value={input}
+              type="text"
+              placeholder="Ask anything"
             />
+            <div>
+              <input
+                type="file"
+                onChange={(e) => {
+                  setFile(e.target.files[0]);
+                }}
+                style={{ display: "none" }}
+                id="fileUpload"
+              />
               <img
                 src={isListening ? assets.mic_active_icon : assets.mic_icon}
                 className="utility_icon"
                 alt="Mic"
                 onClick={isListening ? stopListening : startListening}
               />
-            <label className="file_label" htmlFor="fileUpload">
-              <img className="file_icon utility_icon" src={assets.add_file} alt="" />
-            </label>
-            <img
-              onClick={() => {
-                if (stopIcon) {
-                  stopReply();
-                } else if (input.trim() && allowSending) {
-                  onSent(input, file);
-                  setFile(null)
-                  scrollToBottom();
-                }
-              }}
-              src={stopIcon ? assets.stop_button : assets.send_icon}
-              alt="" className="utility_icon"
-            />
-          </div>
+              <label className="file_label" htmlFor="fileUpload">
+                <img
+                  className="file_icon utility_icon"
+                  src={assets.add_file}
+                  alt=""
+                />
+              </label>
+              <img
+                onClick={() => {
+                  if (stopIcon) {
+                    stopReply();
+                  } else if (input.trim() && allowSending) {
+                    onSent(input, file);
+                    setFile(null);
+                    scrollToBottom();
+                  }
+                }}
+                src={stopIcon ? assets.stop_button : assets.send_icon}
+                alt=""
+                className="utility_icon"
+              />
+            </div>
           </div>
         </div>
       </div>
