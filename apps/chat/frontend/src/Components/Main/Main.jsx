@@ -2,15 +2,25 @@ import React, { useContext, useEffect, useRef, useState } from "react";
 import "./Main.css";
 import { assets } from "../../assets/assets";
 import Card from "./Card";
+
+import { Link } from "react-router";
 import { Context } from "../../Context/Context";
+import { Copy, RefreshCw } from "lucide-react";
 
 const Main = () => {
-  const [isDarkMode, setIsDarkMode] = useState(true);
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    const stored = localStorage.getItem("theme");
+    if (stored) return stored === "dark";
+    return window.matchMedia("(prefers-color-scheme: dark)").matches;
+  });
+
   const [isListening, setIsListening] = useState(false);
   const [searchInLogs, setSearchInLogs] = useState(false);
+  const [resultCount, setResultCount] = useState(10);
   const [isToggling, setIsToggling] = useState(false);
   const [isIngesting, setIsIngesting] = useState(false);
   const recognitionRef = useRef(null);
+  const [lastUserInput, setLastUserInput] = useState("");
 
   const [file, setFile] = useState(null);
   const {
@@ -22,7 +32,8 @@ const Main = () => {
     allowSending,
     stopReply,
     stopIcon,
-    isThinking, 
+    regenerateResponse,
+    isThinking,
   } = useContext(Context);
 
   const chatEndRef = useRef(null);
@@ -79,8 +90,10 @@ const Main = () => {
       const newMode = !prevMode;
       if (newMode) {
         document.documentElement.classList.add("dark-mode");
+        localStorage.setItem("theme", "dark");
       } else {
         document.documentElement.classList.remove("dark-mode");
+        localStorage.setItem("theme", "light");
       }
       return newMode;
     });
@@ -88,7 +101,7 @@ const Main = () => {
 
   const handleSend = () => {
     if (input.trim() && allowSending) {
-      onSent(input, file, { searchInLogs });
+      onSent(input, file, { searchInLogs, resultCount });
       setFile(null);
       scrollToBottom();
     }
@@ -189,7 +202,6 @@ const Main = () => {
             onClick={toggleDarkMode}
             alt={isDarkMode ? "Light Mode" : "Dark Mode"}
           />
-          <img src={assets.user_icon} alt="User" />
         </div>
       </div>
 
@@ -202,7 +214,7 @@ const Main = () => {
               </p>
               <p className="greetMsg">How can I help you today?</p>
             </div>
-            <div className="cards">{/* <Card /> here if needed */}</div>
+            {/* <div className="cards"><Card /> here if needed</div> */}
           </>
         ) : (
           conversation.messages.map((message, index) => (
@@ -210,21 +222,47 @@ const Main = () => {
               <div className={`result_title ${message.type}`}>
                 {message.type === "bot" ? (
                   <div className={`result_data`}>
-                    <div className="hello">
-                      
-                      {index === conversation.messages.length - 1 && isThinking ? (
-                        <div className="loader">
-                          <span></span>
-                          <span></span>
-                          <span></span>
+                    {index === conversation.messages.length - 1 &&
+                    isThinking ? (
+                      <div className="loader">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                      </div>
+                    ) : (
+                      <div className="hello">
+                        <p
+                          dangerouslySetInnerHTML={{ __html: message.text }}
+                        ></p>
+                        <div className="chat-utils">
+                          <Copy
+                            size={18}
+                            className="icon-btn"
+                            onClick={() => {
+                              const tempElement = document.createElement("div");
+                              tempElement.innerHTML = message.text;
+                              const plainText =
+                                tempElement.textContent ||
+                                tempElement.innerText ||
+                                "";
+                              navigator.clipboard.writeText(plainText);
+                            }}
+                            title="Copy"
+                          />
+                          <RefreshCw
+                            size={18}
+                            className="icon-btn"
+                            onClick={() => regenerateResponse(lastUserInput)}
+                            title="Regenerate"
+                          />
                         </div>
-                      ) : (
-                        <p dangerouslySetInnerHTML={{ __html: message.text }}></p>
-                      )}
-                    </div>
+                      </div>
+                    )}
                   </div>
                 ) : (
-                  <p>{message.text}</p>
+                  <div className="user_msg">
+                    <p>{message.text}</p>
+                  </div>
                 )}
               </div>
             </div>
@@ -233,11 +271,9 @@ const Main = () => {
         <div ref={chatEndRef}></div>
       </div>
 
-      <div
-        className={`main_bottom ${file ? "main_bottom_with_file" : ""}`}
-        style={{ marginLeft: "120px" }}
-      >
+      <div className={`main_bottom ${file ? "main_bottom_with_file" : ""}`}>
         <div className="search_box">
+          {/* Search Options Header */}
           <div className="search_header">
             <div className="toggle_container">
               <span className="toggle_label">Search in Logs</span>
@@ -252,8 +288,21 @@ const Main = () => {
                 <div className="toggle_slider"></div>
               </button>
             </div>
+            {/* <div className="result_count_container">
+              <label className="input_label">No of logs</label>
+              <input
+                type="number"
+                className="result_count_input"
+                value={resultCount}
+                onChange={handleResultCountChange}
+                min="1"
+                max="100"
+                placeholder="10"
+              />
+            </div> */}
           </div>
 
+          {/* File Container */}
           {file && (
             <div className="file_container">
               <img className="new_file" src={assets.file} alt="File" />
@@ -267,6 +316,7 @@ const Main = () => {
             </div>
           )}
 
+          {/* Main Input Row */}
           <div className="input_row">
             <div className="main_input_container">
               <input
@@ -296,24 +346,17 @@ const Main = () => {
                 />
               </button>
 
-              <input
-                type="file"
-                onChange={(e) => setFile(e.target.files?.[0] || null)}
-                style={{ display: "none" }}
-                id="fileUpload"
-                accept="*/*"
-              />
-              <label
+              <Link
                 className="icon_button file_button"
-                htmlFor="fileUpload"
-                title="Upload File"
+                to={"/upload"}
+                title="upload file"
               >
                 <img
                   className="file_icon utility_icon"
                   src={assets.add_file}
                   alt="Upload file"
                 />
-              </label>
+              </Link>
 
               <button
                 className="icon_button send_button primary"

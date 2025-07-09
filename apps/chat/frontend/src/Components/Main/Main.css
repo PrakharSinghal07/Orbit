@@ -22,6 +22,7 @@
   --toggle-active: #4b90ff;
   --border-light: #e5e7eb;
   --accent-blue: #3b82f6;
+  --scrollbar-width: 16px;
 }
 
 .dark-mode {
@@ -62,7 +63,6 @@ body {
 
 .main {
   flex: 1;
-  min-height: 100vh;
   position: relative;
   background-color: var(--background-color);
 }
@@ -82,7 +82,7 @@ body {
 .main .nav {
   position: sticky;
   top: 0;
-  backdrop-filter: blur(1000px);
+  backdrop-filter: blur(30px);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -93,8 +93,27 @@ body {
   color: var(--nav-text-color);
   z-index: 10000;
   margin-bottom: 40px;
-  backdrop-filter: blur(30px);
+  background: rgba(245, 245, 255, 0.85);
+
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.06);
+  transition: background 0.3s, box-shadow 0.3s, border-bottom 0.3s;
   user-select: none;
+}
+
+.main .nav:hover {
+  background: rgba(230, 240, 255, 0.98);
+  box-shadow: 0 4px 24px rgba(59, 130, 246, 0.1);
+}
+
+.dark-mode .main .nav {
+  background: #121212;
+  color: var(--nav-text-color);
+
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.18);
+}
+
+.dark-mode .main .nav:hover {
+  box-shadow: 0 4px 24px rgba(128, 135, 144, 0.1);
 }
 
 .light_mode_icon {
@@ -142,6 +161,7 @@ body {
   margin: auto;
   display: flex;
   flex-direction: column;
+  padding-bottom: 140px;
 }
 
 .main .greet {
@@ -258,22 +278,39 @@ body {
 
 .main_bottom {
   position: fixed;
-  bottom: -10px;
-  width: 66%;
-  max-width: 85vw;
-  left: 50%;
-  transform: translate(-50%, 0%);
-  padding: 0px 20px 10px 20px;
-  margin: auto;
+  left: 250px;
+  right: 20px;
+  bottom: 0;
+  height: 120px;
   z-index: 100;
-  background-color: var(--background-color);
-  height: auto;
-  min-height: 90px;
-  margin-top: 30px;
+  background: var(--background-color);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 0 32px 0 0;
+  border-top: 1.5px solid var(--border-light);
+  transition: left 0.3s, width 0.3s, height 0.3s;
+  padding-right: var(--scrollbar-width);
 }
 
-.main_bottom_with_file {
-  bottom: 45px;
+.app-container.sidebar-collapsed .main_bottom {
+  left: 60px;
+}
+
+@media (max-width: 900px) {
+  .main_bottom {
+    left: 0;
+    right: 0;
+    height: 100px;
+    min-height: 80px;
+    padding: 0 16px 0 10px;
+  }
+}
+
+.search_box {
+  width: 100%;
+  max-width: 941px;
+  margin: 0 auto;
 }
 
 .search_box {
@@ -286,8 +323,9 @@ body {
   border: 2px solid var(--border-light);
   transition: all 0.4s ease;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-  max-width: 800px; /* Add max-width */
-  margin: 0 auto; /* Center the search box */
+  width: 100%;
+  max-width: 941px;
+  margin: 0 auto;
 }
 
 .search_box:hover {
@@ -300,7 +338,6 @@ body {
   box-shadow: 0 8px 32px rgba(96, 165, 250, 0.15);
 }
 
-/* Search Header */
 .search_header {
   display: flex;
   align-items: center;
@@ -387,7 +424,6 @@ body {
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
-/* File Container */
 .file_container {
   display: inline-flex;
   padding: 8px 12px;
@@ -416,18 +452,16 @@ body {
   cursor: pointer;
 }
 
-/* Main Input Row */
 .input_row {
   display: flex;
   align-items: center;
   gap: 12px;
-  justify-content: center; /* Add this to center the content */
+  justify-content: center;
 }
 
 .main_input_container {
   flex: 1;
-  max-width: 600px; /* Limit the input width */
-  margin: 0 auto; /* Center the input container */
+  margin: 0 auto;
 }
 
 .main_text_input {
@@ -454,7 +488,6 @@ body {
   user-select: none;
 }
 
-/* Action Buttons */
 .action_buttons {
   display: flex;
   align-items: center;
@@ -518,7 +551,6 @@ body {
   filter: brightness(1) invert(1);
 }
 
-/* Search Status */
 .search_status {
   display: flex;
   align-items: center;
@@ -555,7 +587,6 @@ body {
   }
 }
 
-/* Keep all your existing styles below */
 .main .bottom_info {
   font-size: 13px;
   margin: 15px auto;
@@ -824,22 +855,6 @@ code {
     font-size: 13px;
   }
 
-  .main_bottom {
-    position: fixed;
-    bottom: -10px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 100%;
-    max-width: 900px;
-    padding: 0px 20px 10px 20px;
-    margin: 0;
-    z-index: 100;
-    background-color: var(--background-color);
-    height: auto;
-    min-height: 90px;
-    margin-top: 30px;
-  }
-
   .search_box input {
     font-size: 16px;
   }
@@ -932,4 +947,21 @@ code {
   to {
     transform: rotate(360deg);
   }
+}
+
+.chat-utils {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.icon-btn {
+  cursor: pointer;
+  color: #ccc;
+  transition: color 0.2s ease, transform 0.2s ease;
+}
+
+.icon-btn:hover {
+  color: #fff;
+  transform: scale(1.1);
 }
