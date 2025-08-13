@@ -99,7 +99,7 @@ services:
       - CREATE_COLLECTIONS_DYNAMICALLY=true
       - EMBEDDING_MODEL=models/text-embedding-004
       - EMBEDDING_DIMENSIONALITY=768
-      - LLM_MODEL=gemini-2.0-flash
+      - LLM_MODEL=gemini-2.5-flash-lite
       - GEMINI_API_KEY=AIzaSyByCUsepBOtNC4xt1T30KBZKDrDScQArHo
       - CONNECTION_TIMEOUT=15
       - REDIS_HOST=redis
@@ -158,11 +158,11 @@ services:
     container_name: log-generator
     restart: unless-stopped
     volumes:
-      - log_data:/app/synthetic_logs # This should match your Go code's output path
+      - log_data:/app/synthetic_logs
     networks:
       - chat-app-network
     environment:
-      - LOG_OUTPUT_DIR=/app/synthetic_logs # M
+      - LOG_OUTPUT_DIR=/app/synthetic_logs
 
   fluent-bit:
     image: fluent/fluent-bit:3.0

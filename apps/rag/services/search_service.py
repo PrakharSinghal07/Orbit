@@ -1,4 +1,4 @@
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional,Tuple
 from dataclasses import dataclass
 from rag.models.gemini_client import GeminiClient
 from rag.models.qdrant_client import MyQdrantClient
@@ -36,7 +36,6 @@ class SearchService:
         }
     
     def extract_filters(self, query: str) -> Dict[str, Any]:
-        """Extract simple filters from query using LLM"""
         prompt = f"""
 Extract search filters from this query for a system with logs and documents.
 
@@ -126,41 +125,30 @@ JSON format:
         filters: Dict[str, Any], 
         limit: int
     ) -> List[SearchResult]:
+        # valid_filters = self.filter_for_collection(filters, collection_name)
+        # print(f"Filtered filters for {collection_name}: {valid_filters}")
         
-        valid_filters = self.filter_for_collection(filters, collection_name)
-        print(f"Filtered filters for {collection_name}: {valid_filters}")
+        # filter_conditions = {}
+        # for key, value in valid_filters.items():
+        #     if key == "time_range":
+        #         time_filter = self.build_time_filter(value)
+        #         if time_filter:
+        #             filter_conditions["timestamp"] = time_filter
+        #     else:
+        #         filter_conditions[key] = value
         
-        filter_conditions = {}
-        for key, value in valid_filters.items():
-            if key == "time_range":
-                time_filter = self.build_time_filter(value)
-                if time_filter:
-                    filter_conditions["timestamp"] = time_filter
-            else:
-                filter_conditions[key] = value
-        
+        # Disable all filtering for now
+        filter_conditions = None
         try:
-            if filter_conditions:
-                search_results = self.qdrant_client.search(
-                    collection_name=collection_name,
-                    query_vector=query_vector,
-                    limit=limit,
-                    filter_conditions=filter_conditions,
-                    hnsw_ef=256,
-                    exact=False,
-                    indexed_only=True
-                )
-            else:
-                search_results = self.qdrant_client.search(
-                    collection_name=collection_name,
-                    query_vector=query_vector,
-                    limit=limit,
-                    filter_conditions=None,
-                    hnsw_ef=256,
-                    exact=False,
-                    indexed_only=True
-                )
-            
+            search_results = self.qdrant_client.search(
+                collection_name=collection_name,
+                query_vector=query_vector,
+                limit=limit,
+                filter_conditions=filter_conditions,
+                hnsw_ef=256,
+                exact=False,
+                indexed_only=True
+            )
             results = []
             for result in search_results:
                 if 'message' in result.payload:  
@@ -180,7 +168,6 @@ JSON format:
                 ))
             
             return results
-            
         except Exception as e:
             print(f"Search error in {collection_name}: {e}")
             try:
@@ -213,10 +200,74 @@ JSON format:
                     ))
                 
                 return results
-                
             except Exception as e:
                 print(f"Fallback search failed for {collection_name}: {e}")
                 return []
+            
+    def extract_metadata_and_enhance_query(self, query: str) -> Tuple[Dict[str, Any], str]:
+    
+        try:
+            prompt = f"""
+    Analyze this user query and extract metadata, then enhance it for better search.
+
+    Original Query: "{query}"
+
+    Extract the following metadata (use null if not present):
+    - intent: question, request, complaint, information_seeking, troubleshooting
+    - urgency: low, medium, high, critical
+    - time_context: current, historical, future, specific_date
+    - technical_complexity: basic, intermediate, advanced
+    - domain: technical, business, general, logs, documentation
+
+    Then enhance the query by:
+    1. Adding relevant synonyms and related terms
+    2. Expanding abbreviations
+    3. Adding context keywords
+    4. Making implicit concepts explicit
+
+    Respond in this exact JSON format:
+    {{
+        "metadata": {{
+            "intent": "...",
+            "urgency": "...",
+            "time_context": "...",
+            "technical_complexity": "...",
+            "domain": "..."
+        }},
+        "enhanced_query": "enhanced version of the query with additional relevant terms and context"
+    }}
+    """
+            
+            response = ""
+            for chunk in self.gemini_client.generate_text(prompt, temperature=0.1):
+                response += chunk
+            
+            # Extract JSON from response
+            start = response.find('{')
+            end = response.rfind('}') + 1
+            if start != -1 and end != 0:
+                result = json.loads(response[start:end])
+                metadata = result.get('metadata', {})
+                enhanced_query = result.get('enhanced_query', query)
+                
+                # Clean up metadata - remove null values
+                metadata = {k: v for k, v in metadata.items() if v is not None and v != "null"}
+                
+                # Fallback to original query if enhancement is too similar or empty
+                if not enhanced_query or enhanced_query.strip() == query.strip():
+                    enhanced_query = query
+                
+                print(f"Original query: {query}")
+                print(f"Enhanced query: {enhanced_query}")
+                print(f"Extracted metadata: {metadata}")
+                
+                return metadata, enhanced_query
+                
+        except Exception as e:
+            print(f"Query enhancement error: {e}")
+            return {}, query
+        
+        return {}, query
     
     def search_concurrent(
         self, 
